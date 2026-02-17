@@ -9,9 +9,8 @@ class PriceLevel{
         explicit PriceLevel(Price price): price_(price){};
 
         void addOrder(const Order& order);
-        void removeOrder(std::list<Order>::iterator it);
         void removeOrderById(OrderId id);
-        Quantity getTotalQuantity();
+        Quantity getTotalQuantity() const;
         std::list<Order> getOrders() const noexcept { return orders_; }
 
     private:
@@ -22,5 +21,6 @@ class PriceLevel{
         // Use unordered map for O(1) lookup of list iterators
         std::unordered_map<OrderId, std::list<Order>::iterator> orderMap_;    
      
+        void removeOrder(std::list<Order>::iterator it);
 
 };

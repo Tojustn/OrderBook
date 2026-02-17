@@ -17,7 +17,7 @@ void PriceLevel::removeOrderById(OrderId orderId){
     }
 }
 
-Quantity PriceLevel::getTotalQuantity(){
+Quantity PriceLevel::getTotalQuantity() const{
     Quantity total_Quantity{0};
 
     for(const Order& order: orders_){

@@ -6,12 +6,10 @@
 #include <map>
 #include <memory>
 
-// OrderLocation holds the price, side and an iterator to the Orders position
-// For easy removal we need both price and side and the iterator for O(1) removal w
+// OrderLocation holds the price and side for fast cancel lookups
 struct OrderLocation {
     Price price_;
     Side side_;
-    std::list<Order>::iterator it_;
 };
 class OrderBook{
     public:
@@ -19,6 +17,8 @@ class OrderBook{
         OrderBook() =default;
         void addOrder(const Order& order);
         void cancelOrder(const OrderId orderId);
+        const std::map<Price, PriceLevel>& getBids() const noexcept { return bids_; }
+        const std::map<Price, PriceLevel>& getAsks() const noexcept { return asks_; }
     private:   
         std::map<Price, PriceLevel> bids_;
         std::map<Price, PriceLevel> asks_;

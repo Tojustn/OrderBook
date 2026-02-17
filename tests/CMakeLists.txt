@@ -8,7 +8,7 @@
 
   FetchContent_MakeAvailable(Catch2)
 
-  add_executable(tests price_level_test.cpp)
+  add_executable(tests price_level_test.cpp order_book_test.cpp)
   target_link_libraries(tests PRIVATE orderbook Catch2::Catch2WithMain)
 
   include(CTest)
