@@ -13,7 +13,7 @@ set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(benchmark)
 
 add_executable(benchmarks
-    benchmark_main.cpp
+    # Add benchmark source files here
 )
 
 target_link_libraries(benchmarks
