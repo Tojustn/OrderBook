@@ -3,58 +3,44 @@
 #include "order.hpp"
 #include "types.hpp"
 
-TEST_CASE("PriceLevel operations", "[pricelevel]") {
-    Price levelPrice = 100;
-    PriceLevel level(levelPrice);
-    
-    OrderId orderId = 1;
-    Side side = Side::BUY;
-    Price price = 100;
-    Quantity quantity = 50;
-    Order order(orderId, side, price, quantity);
-    
-    SECTION("addOrder adds order to level") {
-        level.addOrder(order);
-        
-        auto orders = level.getOrders();
-        REQUIRE(orders.size() == 1);
-        
-        const Order& firstOrder = orders.front();
-        CHECK(firstOrder.getId() == orderId);
-        CHECK(firstOrder.getSide() == side);
-        CHECK(firstOrder.getPrice() == price);
-        CHECK(firstOrder.getQuantity() == quantity);
-    }
-    
-    SECTION("removeOrder removes order from level") {
-        level.addOrder(order);
-        REQUIRE(level.getOrders().size() == 1);
-        
-        level.removeOrderById(orderId);
-        
-        auto orders = level.getOrders();
-        REQUIRE(orders.empty());
-    }
-    
-    SECTION("addOrder with multiple orders") {
-        Order order2(2, side, price, 30);
-        
-        level.addOrder(order);
-        level.addOrder(order2);
-        
-        auto orders = level.getOrders();
-        REQUIRE(orders.size() == 2);
-        CHECK(level.getTotalQuantity() == 80);
-    }
-    
-    SECTION("removeOrder decreases total volume") {
-        Order order2(2, side, price, 30);
-        level.addOrder(order);
-        level.addOrder(order2);
-        
-        level.removeOrderById(orderId);
-        
-        REQUIRE(level.getTotalQuantity() == 30);
-        REQUIRE(level.getOrders().size() == 1);
-    }
+TEST_CASE("PriceLevel - addOrder inserts order", "[pricelevel][add]") {
+    PriceLevel level(100);
+    Order order(1, Side::BUY, 100, 50);
+    level.addOrder(order);
+
+    auto orders = level.getOrders();
+    REQUIRE(orders.size() == 1);
+
+    const Order& first = orders.front();
+    CHECK(first.getId() == 1);
+    CHECK(first.getSide() == Side::BUY);
+    CHECK(first.getPrice() == 100);
+    CHECK(first.getQuantity() == 50);
+}
+
+TEST_CASE("PriceLevel - addOrder multiple orders aggregates quantity", "[pricelevel][add]") {
+    PriceLevel level(100);
+    level.addOrder(Order(1, Side::BUY, 100, 50));
+    level.addOrder(Order(2, Side::BUY, 100, 30));
+
+    CHECK(level.getOrders().size() == 2);
+    CHECK(level.getTotalQuantity() == 80);
+}
+
+TEST_CASE("PriceLevel - removeOrderById removes order", "[pricelevel][remove]") {
+    PriceLevel level(100);
+    level.addOrder(Order(1, Side::BUY, 100, 50));
+    level.removeOrderById(1);
+
+    CHECK(level.getOrders().empty());
+}
+
+TEST_CASE("PriceLevel - removeOrderById decreases total quantity", "[pricelevel][remove]") {
+    PriceLevel level(100);
+    level.addOrder(Order(1, Side::BUY, 100, 50));
+    level.addOrder(Order(2, Side::BUY, 100, 30));
+    level.removeOrderById(1);
+
+    CHECK(level.getTotalQuantity() == 30);
+    CHECK(level.getOrders().size() == 1);
 }

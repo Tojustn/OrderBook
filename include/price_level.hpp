@@ -11,14 +11,16 @@ class PriceLevel{
         void addOrder(const Order& order);
         void removeOrderById(OrderId id);
         Quantity getTotalQuantity() const;
-        std::list<Order> getOrders() const noexcept { return orders_; }
+        std::list<Order> getOrders() const noexcept { return orders_; };
+        Order popFront();
+        Order& front();
 
     private:
         Price price_;
         // Using a linked list for FIFO priority
         std::list<Order> orders_;
 
-        // Use unordered map for O(1) lookup of list iterators
+        // Use unordered map for O(1) lookup of list iterators from the orders_ list
         std::unordered_map<OrderId, std::list<Order>::iterator> orderMap_;    
      
         void removeOrder(std::list<Order>::iterator it);

@@ -40,6 +40,9 @@ Makefile
 *.gcov
 coverage/
 
+# Claude
+.claude/
+
 # Other
 *.log
 .cache/

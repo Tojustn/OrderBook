@@ -9,6 +9,7 @@ class Order{
         Side getSide() const noexcept { return side_; }
         Price getPrice() const noexcept { return price_; }
         Quantity getQuantity() const noexcept { return quantity_; }
+        void setQuantity(const Quantity quantity) noexcept { quantity_ = quantity;}
     private:
         Price price_; // in PPU (price per unit)
         Side side_;

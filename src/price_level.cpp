@@ -13,6 +13,7 @@ void PriceLevel::removeOrder(std::list<Order>::iterator it){
 void PriceLevel::removeOrderById(OrderId orderId){
     auto mapIt = orderMap_.find(orderId);
     if (mapIt != orderMap_.end()) {
+        
         removeOrder(mapIt->second);
     }
 }
@@ -26,4 +27,15 @@ Quantity PriceLevel::getTotalQuantity() const{
 
     return total_Quantity;
 
+}
+
+Order& PriceLevel::front(){
+    return orders_.front();
+}
+
+Order PriceLevel::popFront(){
+    Order front = orders_.front();
+    orderMap_.erase(front.getId());
+    orders_.pop_front();
+    return front;
 }

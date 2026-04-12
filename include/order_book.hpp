@@ -19,6 +19,7 @@ class OrderBook{
         void cancelOrder(const OrderId orderId);
         const std::map<Price, PriceLevel>& getBids() const noexcept { return bids_; }
         const std::map<Price, PriceLevel>& getAsks() const noexcept { return asks_; }
+        Quantity matchOrder(const Order& order);
     private:   
         std::map<Price, PriceLevel> bids_;
         std::map<Price, PriceLevel> asks_;
