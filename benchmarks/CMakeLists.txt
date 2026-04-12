@@ -13,7 +13,12 @@ set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(benchmark)
 
 add_executable(benchmarks
-    # Add benchmark source files here
+    order_book_bench.cpp
+)
+
+target_include_directories(benchmarks
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
 )
 
 target_link_libraries(benchmarks
