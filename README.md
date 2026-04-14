@@ -8,11 +8,12 @@ A high-performance limit order book engine implemented in C++20, featuring Marke
 - **FIFO Priority** — orders at the same price level are filled in arrival order
 - **O(1) Cancel** — orders cancelled in constant time via ID lookup
 - **Partial Fills** — incoming orders consume resting liquidity and rest any unfilled remainder
+- **Self-Trade Prevention (STP)** — incoming orders that would match against the same user's resting orders are cancelled
 
 ## Architecture
 
 ### `Order`
-Immutable value type holding order id, side, price, and quantity.
+Immutable value type holding order id, side, price, quantity, and user id.
 
 ### `PriceLevel`
 Manages all orders resting at a single price. Uses a `std::list` for FIFO ordering and an `std::unordered_map<OrderId, iterator>` for O(1) cancellation without disturbing queue position.
@@ -28,6 +29,11 @@ When an order arrives, `matchOrder` is called before insertion:
 - **Sell** — iterates bids from highest price downward, matching while `bid.price >= sell.price`
 
 Within each level, orders are consumed FIFO. Fully drained levels are removed from the map. Any unfilled remainder rests in the book at the limit price.
+
+`matchOrder` returns a `MatchResult` containing the remaining quantity and an STP flag. `addOrder` returns an `AddResult` enum: `ADDED`, `FILLED`, or `STP_CANCELLED`.
+
+#### Self-Trade Prevention
+If `matchOrder` encounters a resting order belonging to the same user as the incoming order, matching stops immediately and `STP_CANCELLED` is returned. Any fills that occurred before hitting the self-order stand; the remainder is not rested.
 
 ## Build
 
