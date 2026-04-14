@@ -15,12 +15,12 @@ class OrderBook{
     public:
         // Use default to start empty
         OrderBook() =default;
-        void addOrder(const Order& order);
+        AddResult addOrder(const Order& order);
         void cancelOrder(const OrderId orderId);
         const std::map<Price, PriceLevel>& getBids() const noexcept { return bids_; }
         const std::map<Price, PriceLevel>& getAsks() const noexcept { return asks_; }
-        Quantity matchOrder(const Order& order);
-    private:   
+    private:
+        MatchResult matchOrder(const Order& order);   
         std::map<Price, PriceLevel> bids_;
         std::map<Price, PriceLevel> asks_;
         std::unordered_map<OrderId, OrderLocation> orderMap_;

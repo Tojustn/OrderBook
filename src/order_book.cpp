@@ -3,31 +3,30 @@
 #include "types.hpp"
 #include <list>
 #include <map>
-void OrderBook::addOrder(const Order& order){
+AddResult OrderBook::addOrder(const Order& order){
     Price order_price = order.getPrice();
     Side order_side = order.getSide();
     OrderId order_id = order.getId();
+    MatchResult result = matchOrder(order);
+    if(result.stpTriggered){
+        return AddResult::STP_CANCELLED; 
+    }
+    else if(result.remaining == 0){
+        return AddResult::FILLED;
+    }
+    // Construct an order instead of changing the original because caller wouldn't expect order to be mutated
+    Order remaining_order(order);
+    remaining_order.setQuantity(result.remaining);
     if(order_side == Side::BUY){
-        Quantity remaning_quantity = matchOrder(order);
-        if(remaning_quantity > 0){
-            // Contruct an order isntead of changing the original because caller woudlnt expect order to be mutated
-            bids_.try_emplace(order_price, order_price);
-            Order remaining_order(order);
-            remaining_order.setQuantity(remaning_quantity);
-            bids_.at(order_price).addOrder(remaining_order);
-            orderMap_[order_id] = {order_price, order_side};
-        }
+        bids_.try_emplace(order_price, order_price);
+        bids_.at(order_price).addOrder(remaining_order);
     }
     else{
-        Quantity remaining_quantity = matchOrder(order);
-        if(remaining_quantity > 0){
-            asks_.try_emplace(order_price, order_price);
-            Order remaining_order(order);
-            remaining_order.setQuantity(remaining_quantity);
-            asks_.at(order_price).addOrder(remaining_order);
-            orderMap_[order_id] = {order_price, order_side};
-        }
+        asks_.try_emplace(order_price, order_price);
+        asks_.at(order_price).addOrder(remaining_order);
     }
+    orderMap_[order_id] = {order_price, order_side};
+    return AddResult::ADDED;
 }
 void OrderBook::cancelOrder(const OrderId orderId){
     auto it = orderMap_.find(orderId);
@@ -44,10 +43,11 @@ void OrderBook::cancelOrder(const OrderId orderId){
     orderMap_.erase(orderId);
 }
 
-Quantity OrderBook::matchOrder(const Order& order){
+MatchResult OrderBook::matchOrder(const Order& order){
     const Price price = order.getPrice();
     const Side side = order.getSide();
     Quantity remainingQuantity = order.getQuantity();
+    UserId orderUserId = order.getUserId();
     if(side == Side::BUY){
         // MBP + FIFO
         // If a buy order comes in we want to match, the lowest possible sell and then check the quantity
@@ -58,6 +58,9 @@ Quantity OrderBook::matchOrder(const Order& order){
             PriceLevel& level = it->second;
             while(level.getTotalQuantity() > 0 && remainingQuantity > 0){
                 Order lowest_ask = it->second.front();
+                if (lowest_ask.getUserId() == orderUserId){
+                    return MatchResult{0, true};
+                }
                 Quantity ask_quantity = lowest_ask.getQuantity();
 
                 // If the ask is not enough quantity
@@ -87,6 +90,9 @@ Quantity OrderBook::matchOrder(const Order& order){
             PriceLevel& level = it->second;
             while(level.getTotalQuantity() > 0 && remainingQuantity > 0){
                 Order& highest_bid = it->second.front();
+                if(highest_bid.getUserId() == orderUserId){
+                    return MatchResult{0, true};
+                }
                 Quantity bid_quantity = highest_bid.getQuantity();
 
                 if(bid_quantity < remainingQuantity){
@@ -106,5 +112,5 @@ Quantity OrderBook::matchOrder(const Order& order){
         }
     }
 
-    return remainingQuantity;
+    return MatchResult{remainingQuantity, false};
 }

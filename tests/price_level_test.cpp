@@ -5,7 +5,7 @@
 
 TEST_CASE("PriceLevel - addOrder inserts order", "[pricelevel][add]") {
     PriceLevel level(100);
-    Order order(1, Side::BUY, 100, 50);
+    Order order(1, Side::BUY, 100, 50, 1);
     level.addOrder(order);
 
     auto orders = level.getOrders();
@@ -20,8 +20,8 @@ TEST_CASE("PriceLevel - addOrder inserts order", "[pricelevel][add]") {
 
 TEST_CASE("PriceLevel - addOrder multiple orders aggregates quantity", "[pricelevel][add]") {
     PriceLevel level(100);
-    level.addOrder(Order(1, Side::BUY, 100, 50));
-    level.addOrder(Order(2, Side::BUY, 100, 30));
+    level.addOrder(Order(1, Side::BUY, 100, 50, 1));
+    level.addOrder(Order(2, Side::BUY, 100, 30, 2));
 
     CHECK(level.getOrders().size() == 2);
     CHECK(level.getTotalQuantity() == 80);
@@ -29,7 +29,7 @@ TEST_CASE("PriceLevel - addOrder multiple orders aggregates quantity", "[pricele
 
 TEST_CASE("PriceLevel - removeOrderById removes order", "[pricelevel][remove]") {
     PriceLevel level(100);
-    level.addOrder(Order(1, Side::BUY, 100, 50));
+    level.addOrder(Order(1, Side::BUY, 100, 50, 1));
     level.removeOrderById(1);
 
     CHECK(level.getOrders().empty());
@@ -37,8 +37,8 @@ TEST_CASE("PriceLevel - removeOrderById removes order", "[pricelevel][remove]") 
 
 TEST_CASE("PriceLevel - removeOrderById decreases total quantity", "[pricelevel][remove]") {
     PriceLevel level(100);
-    level.addOrder(Order(1, Side::BUY, 100, 50));
-    level.addOrder(Order(2, Side::BUY, 100, 30));
+    level.addOrder(Order(1, Side::BUY, 100, 50, 1));
+    level.addOrder(Order(2, Side::BUY, 100, 30, 2));
     level.removeOrderById(1);
 
     CHECK(level.getTotalQuantity() == 30);
