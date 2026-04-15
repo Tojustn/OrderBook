@@ -10,30 +10,39 @@ A high-performance limit order book engine implemented in C++20, featuring Marke
 - **Partial Fills** — incoming orders consume resting liquidity and rest any unfilled remainder
 - **Self-Trade Prevention (STP)** — incoming orders that would match against the same user's resting orders are cancelled
 
-## Architecture
+## Usage
 
-### `Order`
-Immutable value type holding order id, side, price, quantity, and user id.
+```cpp
+OrderBook book;
 
-### `PriceLevel`
-Manages all orders resting at a single price. Uses a `std::list` for FIFO ordering and an `std::unordered_map<OrderId, iterator>` for O(1) cancellation without disturbing queue position.
+book.addOrder(Order{1, Side::SELL, 100, 10, /*userId=*/42}); // rests at 100
+book.addOrder(Order{2, Side::SELL, 101, 5,  /*userId=*/42}); // rests at 101
+AddResult r = book.addOrder(Order{3, Side::BUY, 100, 10, /*userId=*/7}); // fills against order 1
+book.cancelOrder(2); // removes order 2 from the book
+```
 
-### `OrderBook`
-Top-level book with separate bid and ask sides. Uses `std::map<Price, PriceLevel>` for both sides — ordered iteration is free, giving cheapest ask and highest bid in O(log n).
+`addOrder` returns `ADDED`, `FILLED`, or `STP_CANCELLED`.
 
-An `unordered_map<OrderId, OrderLocation>` tracks which price level each resting order lives at, enabling O(1) cancel lookups across the book.
+## Design Decisions
+
+### `PriceLevel` — `std::list` + `std::unordered_map`
+Each price level keeps orders in a `std::list` for stable FIFO ordering. An `unordered_map<OrderId, iterator>` maps each order ID to its position in the list, so cancellation is O(1) without shifting the queue.
+
+### `OrderBook` — `std::map<Price, PriceLevel>`
+Both the bid and ask sides use a sorted `std::map`. This makes finding the best bid (highest) and best ask (lowest) a single iterator dereference, and sweep-matching just walks the map in order without any extra sorting.
+
+### Cancel in O(1)
+A top-level `unordered_map<OrderId, OrderLocation>` records which price and side each resting order lives at. A cancel looks up the location, jumps straight to the right `PriceLevel`, and removes the order — no scanning required.
 
 ### Matching
-When an order arrives, `matchOrder` is called before insertion:
-- **Buy** — iterates asks from lowest price upward, matching while `ask.price <= buy.price`
-- **Sell** — iterates bids from highest price downward, matching while `bid.price >= sell.price`
+When an order arrives, `matchOrder` runs before the order is inserted:
+- **Buy** — walks asks from lowest price upward while `ask.price <= buy.price`
+- **Sell** — walks bids from highest price downward while `bid.price >= sell.price`
 
-Within each level, orders are consumed FIFO. Fully drained levels are removed from the map. Any unfilled remainder rests in the book at the limit price.
+Within each level orders are consumed FIFO. Fully drained levels are erased from the map. Any unfilled remainder rests at the limit price.
 
-`matchOrder` returns a `MatchResult` containing the remaining quantity and an STP flag. `addOrder` returns an `AddResult` enum: `ADDED`, `FILLED`, or `STP_CANCELLED`.
-
-#### Self-Trade Prevention
-If `matchOrder` encounters a resting order belonging to the same user as the incoming order, matching stops immediately and `STP_CANCELLED` is returned. Any fills that occurred before hitting the self-order stand; the remainder is not rested.
+### Self-Trade Prevention
+If the incoming order would match against a resting order from the same user, matching halts immediately and `STP_CANCELLED` is returned. Fills that already occurred before hitting the self-order stand; the remainder is not rested.
 
 ## Build
 
