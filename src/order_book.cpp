@@ -4,10 +4,10 @@
 #include <list>
 #include <map>
 AddResult OrderBook::addOrder(const Order& order){
-    Price order_price = order.getPrice();
-    Side order_side = order.getSide();
-    OrderId order_id = order.getId();
-    MatchResult result = matchOrder(order);
+    const Price order_price = order.getPrice();
+    const Side order_side = order.getSide();
+    const OrderId order_id = order.getId();
+    const MatchResult result = matchOrder(order);
     if(result.stpTriggered){
         return AddResult::STP_CANCELLED; 
     }
@@ -31,7 +31,7 @@ AddResult OrderBook::addOrder(const Order& order){
 void OrderBook::cancelOrder(const OrderId orderId){
     auto it = orderMap_.find(orderId);
     if (it == orderMap_.end()) return;
-    auto& [price, side] = it->second;
+    const auto& [price, side] = it->second;
 
     if(side == Side::BUY){
         bids_.at(price).removeOrderById(orderId);
@@ -47,7 +47,7 @@ MatchResult OrderBook::matchOrder(const Order& order){
     const Price price = order.getPrice();
     const Side side = order.getSide();
     Quantity remainingQuantity = order.getQuantity();
-    UserId orderUserId = order.getUserId();
+    const UserId orderUserId = order.getUserId();
     if(side == Side::BUY){
         // MBP + FIFO
         // If a buy order comes in we want to match, the lowest possible sell and then check the quantity
@@ -57,11 +57,11 @@ MatchResult OrderBook::matchOrder(const Order& order){
         while(it != asks_.end() && it->first <= price && remainingQuantity > 0){
             PriceLevel& level = it->second;
             while(level.getTotalQuantity() > 0 && remainingQuantity > 0){
-                Order lowest_ask = it->second.front();
+                const Order lowest_ask = it->second.front();
                 if (lowest_ask.getUserId() == orderUserId){
                     return MatchResult{0, true};
                 }
-                Quantity ask_quantity = lowest_ask.getQuantity();
+                const Quantity ask_quantity = lowest_ask.getQuantity();
 
                 // If the ask is not enough quantity
                 if(ask_quantity < remainingQuantity){
@@ -93,7 +93,7 @@ MatchResult OrderBook::matchOrder(const Order& order){
                 if(highest_bid.getUserId() == orderUserId){
                     return MatchResult{0, true};
                 }
-                Quantity bid_quantity = highest_bid.getQuantity();
+                const Quantity bid_quantity = highest_bid.getQuantity();
 
                 if(bid_quantity < remainingQuantity){
                     it->second.popFront();

@@ -14,6 +14,7 @@ class PriceLevel{
         std::list<Order> getOrders() const noexcept { return orders_; };
         Order popFront();
         Order& front();
+        const Order& front() const;
 
     private:
         Price price_;

@@ -33,6 +33,10 @@ Order& PriceLevel::front(){
     return orders_.front();
 }
 
+const Order& PriceLevel::front() const{
+    return orders_.front();
+}
+
 Order PriceLevel::popFront(){
     Order front = orders_.front();
     orderMap_.erase(front.getId());
