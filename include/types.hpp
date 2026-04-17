@@ -6,7 +6,7 @@ using Price = int64_t; //price in USD cents
 using Quantity = int64_t; 
 using OrderId = uint64_t;
 using UserId = uint64_t;
-enum class Side{
+enum class Side : uint8_t { 
     BUY,
     SELL
 };
@@ -17,7 +17,7 @@ struct MatchResult{
     bool stpTriggered;
 };
 
-enum class AddResult{
+enum class AddResult : uint8_t {
     STP_CANCELLED, // Self Trade Prevention
     ADDED, 
     FILLED

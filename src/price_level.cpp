@@ -41,5 +41,6 @@ Order PriceLevel::popFront(){
     Order front = orders_.front();
     orderMap_.erase(front.getId());
     orders_.pop_front();
+    // Note that this returns a copy of the front meaning that it is not const
     return front;
 }
