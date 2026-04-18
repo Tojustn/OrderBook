@@ -77,7 +77,7 @@ cmake --build build --config Release
 ./build/benchmarks/Release/benchmarks.exe
 ```
 
-Benchmarks use a hand-rolled `rdtsc` harness over 100,000 samples per operation. Google Benchmark was discarded because it records one aggregate timing per repetition — giving only 1,000 data points for percentiles rather than per-operation measurements. `rdtsc` reads the CPU timestamp counter directly, giving per-operation cycle counts converted to nanoseconds via a 100ms wall-clock calibration window.
+Benchmarks use a hand-rolled `rdtsc` harness — 100,000 per-operation samples, converted to nanoseconds via a 100ms wall-clock calibration window.
 
 **Warm** benchmarks construct one book outside the timed loop with resting orders pre-loaded, reflecting steady-state conditions. **Cold** benchmarks reconstruct per iteration — unavoidable where the book empties on each operation (full match, sweep).
 
