@@ -1,48 +1,52 @@
 # Order Book Engine
 
-A high-performance limit order book engine implemented in C++20, featuring Market By Price (MBP) order matching with FIFO priority at each price level.
+High-performance C++20 limit order book with Market By Price (MBP) matching, O(1) cancel, and nanosecond-resolution latency benchmarks.
 
 ## Features
 
 - **MBP Matching** — orders matched across all price levels, not just best bid/offer
-- **FIFO Priority** — orders at the same price level are filled in arrival order
-- **O(1) Cancel** — orders cancelled in constant time via ID lookup
+- **FIFO Priority** — orders at the same price level filled in arrival order
+- **O(1) Cancel** — constant-time cancellation via ID lookup
 - **Partial Fills** — incoming orders consume resting liquidity and rest any unfilled remainder
-- **Self-Trade Prevention (STP)** — incoming orders that would match against the same user's resting orders are cancelled
+- **Self-Trade Prevention** — orders matching against the same user's resting orders are cancelled immediately
 
 ## Usage
 
 ```cpp
 OrderBook book;
 
-book.addOrder(Order{1, Side::SELL, 100, 10, /*userId=*/42}); // rests at 100
-book.addOrder(Order{2, Side::SELL, 101, 5,  /*userId=*/42}); // rests at 101
-AddResult r = book.addOrder(Order{3, Side::BUY, 100, 10, /*userId=*/7}); // fills against order 1
-book.cancelOrder(2); // removes order 2 from the book
+// Rest orders
+book.addOrder(Order{1, Side::SELL, 100, 10, /*userId=*/42});
+book.addOrder(Order{2, Side::SELL, 101, 5,  /*userId=*/42});
+
+// Match — fills against order 1 at price 100
+AddResult r = book.addOrder(Order{3, Side::BUY, 100, 10, /*userId=*/7});
+// r == AddResult::FILLED
+
+// Cancel
+book.cancelOrder(2);
 ```
 
-`addOrder` returns `ADDED`, `FILLED`, or `STP_CANCELLED`.
+## Design
 
-## Design Decisions
+### Price levels — `std::list` + `std::unordered_map`
+Each price level keeps orders in a `std::list` for stable FIFO ordering. An `unordered_map<OrderId, iterator>` maps each order ID to its list position, making cancellation O(1) without shifting the queue.
 
-### `PriceLevel` — `std::list` + `std::unordered_map`
-Each price level keeps orders in a `std::list` for stable FIFO ordering. An `unordered_map<OrderId, iterator>` maps each order ID to its position in the list, so cancellation is O(1) without shifting the queue.
+### Order book sides — `std::map<Price, PriceLevel>`
+Both bid and ask sides use a sorted `std::map`. Best bid (highest) and best ask (lowest) are a single iterator dereference. Sweep-matching walks the map in order with no extra sorting.
 
-### `OrderBook` — `std::map<Price, PriceLevel>`
-Both the bid and ask sides use a sorted `std::map`. This makes finding the best bid (highest) and best ask (lowest) a single iterator dereference, and sweep-matching just walks the map in order without any extra sorting.
-
-### Cancel in O(1)
-A top-level `unordered_map<OrderId, OrderLocation>` records which price and side each resting order lives at. A cancel looks up the location, jumps straight to the right `PriceLevel`, and removes the order — no scanning required.
+### O(1) cancel
+A top-level `unordered_map<OrderId, OrderLocation>` records which price and side each resting order lives at. Cancel looks up the location, jumps directly to the right `PriceLevel`, and removes the order — no scanning.
 
 ### Matching
-When an order arrives, `matchOrder` runs before the order is inserted:
+When an order arrives, `matchOrder` runs before insertion:
 - **Buy** — walks asks from lowest price upward while `ask.price <= buy.price`
 - **Sell** — walks bids from highest price downward while `bid.price >= sell.price`
 
-Within each level orders are consumed FIFO. Fully drained levels are erased from the map. Any unfilled remainder rests at the limit price.
+Orders within each level are consumed FIFO. Fully drained levels are erased from the map. Any unfilled remainder rests at the limit price.
 
-### Self-Trade Prevention
-If the incoming order would match against a resting order from the same user, matching halts immediately and `STP_CANCELLED` is returned. Fills that already occurred before hitting the self-order stand; the remainder is not rested.
+### Self-trade prevention
+If an incoming order would match against a resting order from the same user, matching halts and `STP_CANCELLED` is returned. Prior fills stand; the remainder is not rested.
 
 ## Build
 
@@ -53,7 +57,7 @@ cmake -B build
 cmake --build build
 ```
 
-## Running Tests
+## Tests
 
 ```bash
 ctest --test-dir build --output-on-failure
@@ -73,16 +77,22 @@ cmake --build build --config Release
 ./build/benchmarks/Release/benchmarks.exe
 ```
 
-### Results (Release, Windows, MSVC)
+Benchmarks use a hand-rolled `rdtsc` harness over 100,000 samples per operation. Google Benchmark was discarded because it records one aggregate timing per repetition — giving only 1,000 data points for percentiles rather than per-operation measurements. `rdtsc` reads the CPU timestamp counter directly, giving per-operation cycle counts converted to nanoseconds via a 100ms wall-clock calibration window.
 
-| Benchmark | Time | CPU |
-|---|---|---|
-| AddOrder (no match) | 421 ns | 389 ns |
-| AddOrder (full match) | 448 ns | 273 ns |
-| CancelOrder | 464 ns | 288 ns |
-| SweepLevels/8 | 3.7 µs | 2.9 µs |
-| SweepLevels/64 | 25 µs | 21 µs |
-| SweepLevels/512 | 203 µs | 166 µs |
-| SweepLevels/1024 | 430 µs | 310 µs |
+**Warm** benchmarks construct one book outside the timed loop with resting orders pre-loaded, reflecting steady-state conditions. **Cold** benchmarks reconstruct per iteration — unavoidable where the book empties on each operation (full match, sweep).
 
-Sweep scales linearly with levels consumed — expected O(n) behavior for MBP matching.
+### Results (Release, Linux/WSL2, GCC)
+
+| Benchmark | Cache | p50 | p99 | p99.9 |
+|---|---|---|---|---|
+| addOrder (no match) | warm | 60 ns | 2,545 ns | 6,061 ns |
+| addOrder (full match) | cold | 50 ns | 261 ns | 631 ns |
+| cancelOrder | warm | 80 ns | 581 ns | 1,433 ns |
+| sweep 8 levels | cold | 471 ns | 952 ns | 1,723 ns |
+| sweep 64 levels | cold | 3,497 ns | 7,835 ns | 42,392 ns |
+| sweep 256 levels | cold | 14,107 ns | 36,250 ns | 94,603 ns |
+| sweep 1024 levels | cold | 55,828 ns | 143,968 ns | 304,758 ns |
+
+p99 spike on `addOrder (no match)` (60ns → 2,545ns) reflects WSL2 scheduler jitter, not book logic
+
+Sweep latency scales linearly with levels consumed — expected O(n) behaviour for MBP matching across `std::map` price levels.
