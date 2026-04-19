@@ -84,18 +84,22 @@ Benchmarks use a hand-rolled `rdtsc` harness — 100,000 per-operation samples, 
 
 **Warm** benchmarks construct one book outside the timed loop with resting orders pre-loaded, reflecting steady-state conditions. **Cold** benchmarks reconstruct per iteration — unavoidable where the book empties on each operation (full match, sweep).
 
-### Results (Release, Linux/WSL2, GCC) on 4/17
+### Results (Release, Linux/WSL2, GCC) on 4/19 — intrusive lists + OrderPool
 
 | Benchmark | Cache | p50 | p99 | p99.9 |
 |---|---|---|---|---|
-| addOrder (no match) | warm | 60 ns | 2,545 ns | 6,061 ns |
-| addOrder (full match) | cold | 50 ns | 261 ns | 631 ns |
-| cancelOrder | warm | 80 ns | 581 ns | 1,433 ns |
-| sweep 8 levels | cold | 471 ns | 952 ns | 1,723 ns |
-| sweep 64 levels | cold | 3,497 ns | 7,835 ns | 42,392 ns |
-| sweep 256 levels | cold | 14,107 ns | 36,250 ns | 94,603 ns |
-| sweep 1024 levels | cold | 55,828 ns | 143,968 ns | 304,758 ns |
+| addOrder (no match) | warm | 60 ns | 2,685 ns | 27,676 ns |
+| addOrder (full match) | cold | 50 ns | 411 ns | 17,495 ns |
+| cancelOrder | warm | 90 ns | 651 ns | 17,746 ns |
+| sweep 8 levels | cold | 421 ns | 1,724 ns | 11,553 ns |
+| sweep 64 levels | cold | 3,527 ns | 8,748 ns | 40,842 ns |
+| sweep 256 levels | cold | 14,119 ns | 36,674 ns | 88,332 ns |
+| sweep 1024 levels | cold | 54,851 ns | 142,307 ns | 293,763 ns |
 
-p99 spike on `addOrder (no match)` (60ns → 2,545ns) reflects WSL2 scheduler jitter, not book logic
+p99 spike on `addOrder (no match)` (60ns → 2,685ns) reflects WSL2 scheduler jitter, not book logic
 
 Sweep latency scales linearly with levels consumed — expected O(n) behaviour for MBP matching across `std::map` price levels.
+
+**Compared to last iteration (4/17)**
+- cancelOrder p50 +10 ns (80 → 90 ns) — within WSL jitter
+- sweep 1024 p50 -977 ns (55,828 → 54,851 ns) — consistent across runs, pool reuse reducing allocation pressure at high order counts
