@@ -3,44 +3,53 @@
 #include "order.hpp"
 #include "types.hpp"
 
+static int countOrders(const Order* head) {
+    int n = 0;
+    for (const Order* o = head; o; o = o->next_) ++n;
+    return n;
+}
+
 TEST_CASE("PriceLevel - addOrder inserts order", "[pricelevel][add]") {
     PriceLevel level(100);
     Order order(1, Side::BUY, 100, 50, 1);
-    level.addOrder(order);
+    level.addOrder(&order);
 
-    auto orders = level.getOrders();
-    REQUIRE(orders.size() == 1);
-
-    const Order& first = orders.front();
-    CHECK(first.getId() == 1);
-    CHECK(first.getSide() == Side::BUY);
-    CHECK(first.getPrice() == 100);
-    CHECK(first.getQuantity() == 50);
+    const Order* head = level.getOrders();
+    REQUIRE(countOrders(head) == 1);
+    CHECK(head->getId() == 1);
+    CHECK(head->getSide() == Side::BUY);
+    CHECK(head->getPrice() == 100);
+    CHECK(head->getQuantity() == 50);
 }
 
 TEST_CASE("PriceLevel - addOrder multiple orders aggregates quantity", "[pricelevel][add]") {
     PriceLevel level(100);
-    level.addOrder(Order(1, Side::BUY, 100, 50, 1));
-    level.addOrder(Order(2, Side::BUY, 100, 30, 2));
+    Order o1(1, Side::BUY, 100, 50, 1);
+    Order o2(2, Side::BUY, 100, 30, 2);
+    level.addOrder(&o1);
+    level.addOrder(&o2);
 
-    CHECK(level.getOrders().size() == 2);
+    CHECK(countOrders(level.getOrders()) == 2);
     CHECK(level.getTotalQuantity() == 80);
 }
 
 TEST_CASE("PriceLevel - removeOrderById removes order", "[pricelevel][remove]") {
     PriceLevel level(100);
-    level.addOrder(Order(1, Side::BUY, 100, 50, 1));
+    Order order(1, Side::BUY, 100, 50, 1);
+    level.addOrder(&order);
     level.removeOrderById(1);
 
-    CHECK(level.getOrders().empty());
+    CHECK(level.getOrders() == nullptr);
 }
 
 TEST_CASE("PriceLevel - removeOrderById decreases total quantity", "[pricelevel][remove]") {
     PriceLevel level(100);
-    level.addOrder(Order(1, Side::BUY, 100, 50, 1));
-    level.addOrder(Order(2, Side::BUY, 100, 30, 2));
+    Order o1(1, Side::BUY, 100, 50, 1);
+    Order o2(2, Side::BUY, 100, 30, 2);
+    level.addOrder(&o1);
+    level.addOrder(&o2);
     level.removeOrderById(1);
 
     CHECK(level.getTotalQuantity() == 30);
-    CHECK(level.getOrders().size() == 1);
+    CHECK(countOrders(level.getOrders()) == 1);
 }

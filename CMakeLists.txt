@@ -9,7 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(BUILD_TESTS "Build unit tests" ON)
 option(BUILD_BENCHMARKS "Build benchmarks" ON)
 
-add_library(orderbook src/order_book.cpp src/price_level.cpp)
+add_library(orderbook src/order_book.cpp src/price_level.cpp src/order_pool.cpp)
 
 target_include_directories(orderbook PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

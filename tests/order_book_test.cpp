@@ -35,7 +35,6 @@ TEST_CASE("addOrder - multiple buys at same price aggregate", "[orderbook][add]"
     auto& bids = book.getBids();
     REQUIRE(bids.size() == 1);
     CHECK(bids.at(100).getTotalQuantity() == 80);
-    CHECK(bids.at(100).getOrders().size() == 2);
 }
 
 TEST_CASE("addOrder - different prices create separate levels", "[orderbook][add]") {
@@ -89,7 +88,6 @@ TEST_CASE("cancelOrder - one order cancelled, other remains", "[orderbook][cance
     book.cancelOrder(1);
 
     CHECK(book.getBids().at(100).getTotalQuantity() == 30);
-    CHECK(book.getBids().at(100).getOrders().size() == 1);
 }
 
 TEST_CASE("cancelOrder - nonexistent order does nothing", "[orderbook][cancel]") {

@@ -1,29 +1,33 @@
 //Holds all orders at that level
 #pragma once
 #include "types.hpp"
-#include <list>
 #include "order.hpp"
 #include <unordered_map>
 class PriceLevel{
     public:
-        explicit PriceLevel(Price price): price_(price){};
+        explicit PriceLevel(Price price): price_(price), head_(nullptr), tail_(nullptr){};
 
-        void addOrder(const Order& order);
+        void addOrder(Order* order);
         void removeOrderById(OrderId id);
-        Quantity getTotalQuantity() const;
-        std::list<Order> getOrders() const noexcept { return orders_; };
-        Order popFront();
+        void reduceFrontQuantity(Quantity qty) noexcept;
+        inline Quantity getTotalQuantity() const noexcept { return totalQuantity_; }
+        const Order* getOrders() const noexcept { return head_; }
+        Order* popFront();
         Order& front();
         const Order& front() const;
 
     private:
         Price price_;
-        // Using a linked list for FIFO priority
-        std::list<Order> orders_;
 
-        // Use unordered map for O(1) lookup of list iterators from the orders_ list
-        std::unordered_map<OrderId, std::list<Order>::iterator> orderMap_;    
+        // Use both a head and a tail for O(1) insertion
+        Order* head_;
+        Order* tail_;
+
+        // map for O(1) deletion
+        std::unordered_map<OrderId, Order*> orderMap_;
      
-        void removeOrder(std::list<Order>::iterator it);
+        void removeOrder(Order* order);
+
+        Quantity totalQuantity_{};
 
 };

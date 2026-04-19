@@ -3,6 +3,19 @@
 #include "types.hpp"
 #include <list>
 #include <map>
+// Not a pointer as a param since caller doesnt manage memory
+void OrderBook::fillOrder(PriceLevel& level) {
+    Order* filled = level.popFront();
+    orderMap_.erase(filled->getId());
+    pool_.deallocate(filled);
+}
+
+OrderBook::~OrderBook() {
+    for (auto& [id, order] : orderMap_) {
+        pool_.deallocate(order);
+    }
+}
+
 AddResult OrderBook::addOrder(const Order& order){
     const Price order_price = order.getPrice();
     const Side order_side = order.getSide();
@@ -14,33 +27,33 @@ AddResult OrderBook::addOrder(const Order& order){
     else if(result.remaining == 0){
         return AddResult::FILLED;
     }
-    // Construct an order instead of changing the original because caller wouldn't expect order to be mutated
-    Order remaining_order(order);
-    remaining_order.setQuantity(result.remaining);
+    Order* slot = pool_.allocate(order);
+    slot->setQuantity(result.remaining);
+    orderMap_[order_id] = slot;
     if(order_side == Side::BUY){
         bids_.try_emplace(order_price, order_price);
-        bids_.at(order_price).addOrder(remaining_order);
+        bids_.at(order_price).addOrder(slot);
     }
     else{
         asks_.try_emplace(order_price, order_price);
-        asks_.at(order_price).addOrder(remaining_order);
+        asks_.at(order_price).addOrder(slot);
     }
-    orderMap_[order_id] = {order_price, order_side};
     return AddResult::ADDED;
 }
 void OrderBook::cancelOrder(const OrderId orderId){
     auto it = orderMap_.find(orderId);
     if (it == orderMap_.end()) return;
-    const auto& [price, side] = it->second;
+    Order* order = it->second;
 
-    if(side == Side::BUY){
-        bids_.at(price).removeOrderById(orderId);
+    if(order->getSide() == Side::BUY){
+        bids_.at(order->getPrice()).removeOrderById(orderId);
     }
     else{
-        asks_.at(price).removeOrderById(orderId);
+        asks_.at(order->getPrice()).removeOrderById(orderId);
     }
 
     orderMap_.erase(orderId);
+    pool_.deallocate(order);
 }
 
 MatchResult OrderBook::matchOrder(const Order& order){
@@ -64,16 +77,13 @@ MatchResult OrderBook::matchOrder(const Order& order){
                 const Quantity ask_quantity = lowest_ask.getQuantity();
 
                 // If the ask is not enough quantity
-                if(ask_quantity < remainingQuantity){
-                    it->second.popFront();
-                    remainingQuantity = remainingQuantity - ask_quantity;   
+                if(ask_quantity <= remainingQuantity){
+                    fillOrder(it->second);
+                    remainingQuantity -= ask_quantity;
                 }
                 else{
-                    // If the remaining Quantity is fulfilled with the ask
-                    Order& ask_order = it->second.front();
-                    ask_order.setQuantity(ask_order.getQuantity() - remainingQuantity);
+                    it->second.reduceFrontQuantity(remainingQuantity);
                     remainingQuantity = 0;
-
                 }
             }
             if(level.getTotalQuantity() == 0)
@@ -95,13 +105,12 @@ MatchResult OrderBook::matchOrder(const Order& order){
                 }
                 const Quantity bid_quantity = highest_bid.getQuantity();
 
-                if(bid_quantity < remainingQuantity){
-                    it->second.popFront();
-                    remainingQuantity = remainingQuantity - bid_quantity;
+                if(bid_quantity <= remainingQuantity){
+                    fillOrder(it->second);
+                    remainingQuantity -= bid_quantity;
                 }
                 else{
-                    Order& bid_order = it->second.front();
-                    bid_order.setQuantity(bid_order.getQuantity() - remainingQuantity);
+                    it->second.reduceFrontQuantity(remainingQuantity);
                     remainingQuantity = 0;
                 }
             }
@@ -114,3 +123,4 @@ MatchResult OrderBook::matchOrder(const Order& order){
 
     return MatchResult{remainingQuantity, false};
 }
+

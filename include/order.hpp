@@ -10,6 +10,9 @@ class Order{
         Price getPrice() const noexcept { return price_; }
         Quantity getQuantity() const noexcept { return quantity_; }
         UserId getUserId() const noexcept {return userId_;}
+
+        Order* next_ = nullptr;
+        Order* prev_ = nullptr;
         
         void setQuantity(const Quantity quantity) noexcept { quantity_ = quantity;}
     private:
@@ -18,5 +21,6 @@ class Order{
         OrderId id_;
         Quantity quantity_;
         UserId userId_;
+
         
 };
