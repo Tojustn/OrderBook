@@ -29,14 +29,17 @@ book.cancelOrder(2);
 
 ## Design
 
-### Price levels — `std::list` + `std::unordered_map`
-Each price level keeps orders in a `std::list` for stable FIFO ordering. An `unordered_map<OrderId, iterator>` maps each order ID to its list position, making cancellation O(1) without shifting the queue.
+### Price levels — intrusive linked list
+Each price level maintains orders in an intrusive doubly-linked list — `next_`/`prev_` pointers live directly on `Order`, eliminating the allocator overhead of `std::list` nodes. An `unordered_map<OrderId, Order*>` maps each ID to its node for O(1) removal without traversal.
 
 ### Order book sides — `std::map<Price, PriceLevel>`
 Both bid and ask sides use a sorted `std::map`. Best bid (highest) and best ask (lowest) are a single iterator dereference. Sweep-matching walks the map in order with no extra sorting.
 
+### Memory pool — `OrderPool`
+`OrderPool` maintains a free list of recycled `Order` slots chained through their intrinsic `next_` pointer. Filled and cancelled orders are returned to the pool rather than deallocated; new orders are placement-newed into a recycled slot. This eliminates per-order heap allocation in steady state.
+
 ### O(1) cancel
-A top-level `unordered_map<OrderId, OrderLocation>` records which price and side each resting order lives at. Cancel looks up the location, jumps directly to the right `PriceLevel`, and removes the order — no scanning.
+A top-level `unordered_map<OrderId, Order*>` maps each live order ID directly to its `Order*`. Cancel dereferences the pointer to get price and side, jumps to the right `PriceLevel`, unlinks the node, and returns the slot to the pool — no scanning, no extra metadata struct.
 
 ### Matching
 When an order arrives, `matchOrder` runs before insertion:
@@ -81,7 +84,7 @@ Benchmarks use a hand-rolled `rdtsc` harness — 100,000 per-operation samples, 
 
 **Warm** benchmarks construct one book outside the timed loop with resting orders pre-loaded, reflecting steady-state conditions. **Cold** benchmarks reconstruct per iteration — unavoidable where the book empties on each operation (full match, sweep).
 
-### Results (Release, Linux/WSL2, GCC)
+### Results (Release, Linux/WSL2, GCC) on 4/17
 
 | Benchmark | Cache | p50 | p99 | p99.9 |
 |---|---|---|---|---|
