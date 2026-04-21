@@ -40,16 +40,25 @@ AddResult OrderBook::addOrder(const Order& order){
     }
     return AddResult::ADDED;
 }
+
+// For client initiated cancels
 void OrderBook::cancelOrder(const OrderId orderId){
     auto it = orderMap_.find(orderId);
     if (it == orderMap_.end()) return;
     Order* order = it->second;
 
+    
     if(order->getSide() == Side::BUY){
-        bids_.at(order->getPrice()).removeOrderById(orderId);
+        PriceLevel& level = bids_.at(order->getPrice());
+        level.removeOrderById(order->getId());
+        if(level.getTotalQuantity() == 0)
+            bids_.erase(order->getPrice());
     }
     else{
-        asks_.at(order->getPrice()).removeOrderById(orderId);
+        PriceLevel& level = asks_.at(order->getPrice());
+        level.removeOrderById(order->getId());
+        if(level.getTotalQuantity() == 0)
+            asks_.erase(order->getPrice());
     }
 
     orderMap_.erase(orderId);

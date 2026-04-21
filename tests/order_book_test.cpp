@@ -67,7 +67,7 @@ TEST_CASE("cancelOrder - cancels a buy order", "[orderbook][cancel]") {
     book.addOrder(order);
     book.cancelOrder(1);
 
-    CHECK(book.getBids().at(100).getTotalQuantity() == 0);
+    CHECK(book.getBids().count(100) == 0);
 }
 
 TEST_CASE("cancelOrder - cancels a sell order", "[orderbook][cancel]") {
@@ -76,7 +76,7 @@ TEST_CASE("cancelOrder - cancels a sell order", "[orderbook][cancel]") {
     book.addOrder(order);
     book.cancelOrder(1);
 
-    CHECK(book.getAsks().at(200).getTotalQuantity() == 0);
+    CHECK(book.getAsks().count(200) == 0);
 }
 
 TEST_CASE("cancelOrder - one order cancelled, other remains", "[orderbook][cancel]") {
@@ -106,7 +106,21 @@ TEST_CASE("cancelOrder - cancel same order twice is safe", "[orderbook][cancel]"
     book.cancelOrder(1);
     book.cancelOrder(1);
 
-    CHECK(book.getBids().at(100).getTotalQuantity() == 0);
+    CHECK(book.getBids().count(100) == 0);
+}
+
+TEST_CASE("cancelOrder - cancelling only order removes price level from bids", "[orderbook][cancel]") {
+    OrderBook book;
+    book.addOrder(Order(1, Side::BUY, 100, 50, 1));
+    book.cancelOrder(1);
+    CHECK(book.getBids().count(100) == 0);
+}
+
+TEST_CASE("cancelOrder - cancelling only order removes price level from asks", "[orderbook][cancel]") {
+    OrderBook book;
+    book.addOrder(Order(1, Side::SELL, 200, 30, 1));
+    book.cancelOrder(1);
+    CHECK(book.getAsks().count(200) == 0);
 }
 
 TEST_CASE("matching - buy fully fills resting sell", "[orderbook][matching]") {
