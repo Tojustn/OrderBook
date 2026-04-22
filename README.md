@@ -1,105 +1,99 @@
 # Order Book Engine
 
-High-performance C++20 limit order book with Market By Price (MBP) matching, O(1) cancel, and nanosecond-resolution latency benchmarks.
+High-performance C++20 limit order book designed for ultra-low latency trading systems.
 
-## Features
+- Sub-500ns order processing (p50)
+- O(1) order cancellation via direct pointer indexing
+- MBP (Market-by-Price) matching engine with FIFO execution
+- Custom rdtsc-based benchmarking harness (100k samples)
 
-- **MBP Matching** — orders matched across all price levels, not just best bid/offer
-- **FIFO Priority** — orders at the same price level filled in arrival order
-- **O(1) Cancel** — constant-time cancellation via ID lookup
-- **Partial Fills** — incoming orders consume resting liquidity and rest any unfilled remainder
-- **Self-Trade Prevention** — orders matching against the same user's resting orders are cancelled immediately
+---
 
-## Usage
+## Performance (Linux / WSL2, GCC Release)
 
-```cpp
-OrderBook book;
+| Operation | p50 | p99 |
+|----------|-----|-----|
+| addOrder (no match) | 60 ns | 2.6 µs |
+| addOrder (match) | 50 ns | 411 ns |
+| cancelOrder | 90 ns | 651 ns |
+| sweep (8 levels) | 421 ns | 1.7 µs |
+| sweep (1024 levels) | 54 µs | 142 µs |
 
-// Rest orders
-book.addOrder(Order{1, Side::SELL, 100, 10, /*userId=*/42});
-book.addOrder(Order{2, Side::SELL, 101, 5,  /*userId=*/42});
+---
 
-// Match — fills against order 1 at price 100
-AddResult r = book.addOrder(Order{3, Side::BUY, 100, 10, /*userId=*/7});
-// r == AddResult::FILLED
+## Core Design
 
-// Cancel
-book.cancelOrder(2);
-```
+### Matching Engine (MBP + FIFO)
+- Orders matched across all price levels (not just top-of-book)
+- FIFO queue per price level ensures fair execution ordering
+- Partial fills supported with remainder resting in-book
 
-## Design
+---
 
-### Price levels — intrusive linked list
-Each price level maintains orders in an intrusive doubly-linked list — `next_`/`prev_` pointers live directly on `Order`, eliminating the allocator overhead of `std::list` nodes. An `unordered_map<OrderId, Order*>` maps each ID to its node for O(1) removal without traversal.
+### Price Levels
+- Intrusive doubly-linked list stored directly in `Order`
+- Eliminates STL node allocation overhead
+- O(1) insertion/removal within a price level
 
-### Order book sides — `std::map<Price, PriceLevel>`
-Both bid and ask sides use a sorted `std::map`. Best bid (highest) and best ask (lowest) are a single iterator dereference. Sweep-matching walks the map in order with no extra sorting.
+---
 
-### Memory pool — `OrderPool`
-`OrderPool` maintains a free list of recycled `Order` slots chained through their intrinsic `next_` pointer. Filled and cancelled orders are returned to the pool rather than deallocated; new orders are placement-newed into a recycled slot. This eliminates per-order heap allocation in steady state.
+### Order Lookup (O(1) cancel)
+- `unordered_map<OrderId, Order*>` → direct pointer access
+- No traversal required for cancellation or modification
+- Enables deterministic cancellation latency
 
-### O(1) cancel
-A top-level `unordered_map<OrderId, Order*>` maps each live order ID directly to its `Order*`. Cancel dereferences the pointer to get price and side, jumps to the right `PriceLevel`, unlinks the node, and returns the slot to the pool — no scanning, no extra metadata struct.
+---
 
-### Matching
-When an order arrives, `matchOrder` runs before insertion:
-- **Buy** — walks asks from lowest price upward while `ask.price <= buy.price`
-- **Sell** — walks bids from highest price downward while `bid.price >= sell.price`
+### Modify / Cancel Semantics
+- **Cancel:** O(1) removal via hash lookup + pointer unlink
+- **Modify:** updates order quantity in-place while preserving:
+  - original FIFO position
+  - original price-time priority ordering
+- No reinsertion required for size changes (avoids queue reshuffle)
 
-Orders within each level are consumed FIFO. Fully drained levels are erased from the map. Any unfilled remainder rests at the limit price.
+---
 
-### Self-trade prevention
-If an incoming order would match against a resting order from the same user, matching halts and `STP_CANCELLED` is returned. Prior fills stand; the remainder is not rested.
+### Memory Management
+- Custom `OrderPool` using free-list recycling
+- Placement-new allocation removes runtime heap overhead
+- Designed for steady-state zero-allocation behavior
 
-## Build
+---
 
-Requires CMake 3.15+ and a C++20 compiler.
+### Design Tradeoff: `std::map` vs `std::array`
 
-```bash
-cmake -B build
-cmake --build build
-```
+A `std::array`-based price ladder was evaluated as an alternative to `std::map` for O(1) indexed price access. While arrays provide constant-time lookup, they require a fixed price range and tick size, tightly coupling the engine to a specific instrument.
 
-## Tests
+In contrast, `std::map` provides:
+- full price-range flexibility (any instrument, any tick size)
+- memory proportional to active price levels (sparse efficiency)
+- acceptable log(n) overhead relative to matching and traversal cost
 
-```bash
-ctest --test-dir build --output-on-failure
-```
+Given that real-world books are sparse across large price spaces, the map-based design avoids significant memory waste and maintains flexibility without measurable latency degradation in observed benchmarks.
 
-Run a specific tag:
-```bash
-./build/tests/Debug/tests.exe [matching]
-./build/tests/Debug/tests.exe [cancel]
-```
+---
 
-## Benchmarks
+## Matching Logic
 
-```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_BENCHMARKS=ON
-cmake --build build --config Release
-./build/benchmarks/Release/benchmarks.exe
-```
+- Buy orders walk asks upward while price condition holds
+- Sell orders walk bids downward
+- Fully consumed levels are erased from active book
+- Self-trade prevention cancels internal matches at source
 
-Benchmarks use a hand-rolled `rdtsc` harness — 100,000 per-operation samples, converted to nanoseconds via a 100ms wall-clock calibration window.
+---
 
-**Warm** benchmarks construct one book outside the timed loop with resting orders pre-loaded, reflecting steady-state conditions. **Cold** benchmarks reconstruct per iteration — unavoidable where the book empties on each operation (full match, sweep).
+## Benchmarking
 
-### Results (Release, Linux/WSL2, GCC) on 4/19 — intrusive lists + OrderPool
+- Custom `rdtsc` cycle-accurate harness
+- 100,000 iterations per measurement
+- Warm vs cold cache isolation
+- 100ms calibration window for cycle → ns conversion
 
-| Benchmark | Cache | p50 | p99 | p99.9 |
-|---|---|---|---|---|
-| addOrder (no match) | warm | 60 ns | 2,685 ns | 27,676 ns |
-| addOrder (full match) | cold | 50 ns | 411 ns | 17,495 ns |
-| cancelOrder | warm | 90 ns | 651 ns | 17,746 ns |
-| sweep 8 levels | cold | 421 ns | 1,724 ns | 11,553 ns |
-| sweep 64 levels | cold | 3,527 ns | 8,748 ns | 40,842 ns |
-| sweep 256 levels | cold | 14,119 ns | 36,674 ns | 88,332 ns |
-| sweep 1024 levels | cold | 54,851 ns | 142,307 ns | 293,763 ns |
+---
 
-p99 spike on `addOrder (no match)` (60ns → 2,685ns) reflects WSL2 scheduler jitter, not book logic
+## Key Engineering Focus
 
-Sweep latency scales linearly with levels consumed — expected O(n) behaviour for MBP matching across `std::map` price levels.
-
-**Compared to last iteration (4/17)**
-- cancelOrder p50 +10 ns (80 → 90 ns) — within WSL jitter
-- sweep 1024 p50 -977 ns (55,828 → 54,851 ns) — consistent across runs, pool reuse reducing allocation pressure at high order counts
+- Cache efficiency over algorithmic complexity
+- Pointer-based data structures over STL abstractions
+- Allocation elimination via pooling
+- Deterministic latency measurement
