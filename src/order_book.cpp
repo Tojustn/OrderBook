@@ -42,12 +42,11 @@ AddResult OrderBook::addOrder(const Order& order){
 }
 
 // For client initiated cancels
-void OrderBook::cancelOrder(const OrderId orderId){
+CancelResult OrderBook::cancelOrder(const OrderId orderId){
     auto it = orderMap_.find(orderId);
-    if (it == orderMap_.end()) return;
+    if (it == orderMap_.end()) return CancelResult::NOT_FOUND;
     Order* order = it->second;
 
-    
     if(order->getSide() == Side::BUY){
         PriceLevel& level = bids_.at(order->getPrice());
         level.removeOrderById(order->getId());
@@ -63,6 +62,7 @@ void OrderBook::cancelOrder(const OrderId orderId){
 
     orderMap_.erase(orderId);
     pool_.deallocate(order);
+    return CancelResult::CANCELLED;
 }
 
 MatchResult OrderBook::matchOrder(const Order& order){
@@ -133,3 +133,36 @@ MatchResult OrderBook::matchOrder(const Order& order){
     return MatchResult{remainingQuantity, false};
 }
 
+
+ModifyResult OrderBook::modifyOrder(const OrderId orderId, const Quantity newQuantity){
+    if(newQuantity < 0){
+        return ModifyResult::INVALID_QUANTITY;
+    }
+    else if(newQuantity == 0){
+        const CancelResult result = cancelOrder(orderId);
+        return result == CancelResult::NOT_FOUND ? ModifyResult::ORDER_NOT_FOUND : ModifyResult::SUCCESS;
+    }
+
+    auto it = orderMap_.find(orderId);
+    if(it == orderMap_.end()){
+        return ModifyResult::ORDER_NOT_FOUND;
+    }
+    else{
+        const Quantity currentQuantity = it->second->getQuantity();
+        const Side side = it->second->getSide();
+        const Price price = it->second->getPrice();
+
+        it->second->setQuantity(newQuantity);
+
+        if(side == Side::BUY){
+            bids_.at(price).modifyOrderQuantity(newQuantity - currentQuantity);
+        }
+        else{
+            asks_.at(price).modifyOrderQuantity(newQuantity - currentQuantity);
+        }
+        return ModifyResult::SUCCESS;
+        
+    }
+
+
+}

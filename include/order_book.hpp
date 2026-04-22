@@ -11,7 +11,8 @@ class OrderBook{
         OrderBook() =default;
         ~OrderBook();
         AddResult addOrder(const Order& order);
-        void cancelOrder(const OrderId orderId);
+        CancelResult cancelOrder(const OrderId orderId);
+        ModifyResult modifyOrder(const OrderId orderId, const Quantity newQuantity);
         const std::map<Price, PriceLevel>& getBids() const noexcept { return bids_; }
         const std::map<Price, PriceLevel>& getAsks() const noexcept { return asks_; }
     private:

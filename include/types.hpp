@@ -22,3 +22,15 @@ enum class AddResult : uint8_t {
     ADDED, 
     FILLED
 };
+
+enum class CancelResult : uint8_t {
+    CANCELLED,
+    NOT_FOUND
+};
+
+// Results for Modify Order
+enum class ModifyResult : uint8_t{
+    SUCCESS,
+    ORDER_NOT_FOUND,
+    INVALID_QUANTITY
+};

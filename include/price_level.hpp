@@ -10,6 +10,7 @@ class PriceLevel{
         void addOrder(Order* order);
         void removeOrderById(OrderId id);
         void reduceFrontQuantity(Quantity qty) noexcept;
+        void modifyOrderQuantity(Quantity qty) noexcept {totalQuantity_ += qty;};
         inline Quantity getTotalQuantity() const noexcept { return totalQuantity_; }
         const Order* getOrders() const noexcept { return head_; }
         Order* popFront();
