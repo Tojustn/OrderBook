@@ -55,7 +55,7 @@ High-performance C++20 limit order book designed for ultra-low latency trading s
 
 ### Memory Management
 - Custom `OrderPool` using free-list recycling
-- Placement-new allocation removes runtime heap overhead
+- Recycled slots reused via in-place assignment — no heap allocation on the hot path
 - Designed for steady-state zero-allocation behavior
 
 ---
