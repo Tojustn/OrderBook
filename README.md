@@ -2,22 +2,26 @@
 
 High-performance C++20 limit order book designed for ultra-low latency trading systems.
 
-- Sub-500ns order processing (p50)
+- Sub-100ns order processing (p50)
 - O(1) order cancellation via direct pointer indexing
-- MBP (Market-by-Price) matching engine with FIFO execution
-- Custom rdtsc-based benchmarking harness (100k samples)
+- MBO (Market-by-Order) matching engine with FIFO execution
+- Custom rdtsc-based benchmarking harness replayed against 12M+ real BTC L2 events
 
 ---
 
 ## Performance (Linux / WSL2, GCC Release)
 
-| Operation | p50 | p99 |
-|----------|-----|-----|
-| addOrder (no match) | 60 ns | 2.6 µs |
-| addOrder (match) | 50 ns | 411 ns |
-| cancelOrder | 90 ns | 651 ns |
-| sweep (8 levels) | 421 ns | 1.7 µs |
-| sweep (1024 levels) | 54 µs | 142 µs |
+| Operation | p50 | p99 | p99.9 |
+|----------|-----|-----|-------|
+| addOrder (no match) | 58.7 ns | 2.5 µs | 19.3 µs |
+| addOrder (full match) | 49.2 ns | 304.9 ns | 668.9 ns |
+| cancelOrder | 118.0 ns | 668.9 ns | 1.2 µs |
+| sweep (8 levels) | 423 ns | 836.1 ns | 1.3 µs |
+| sweep (64 levels) | 3.4 µs | 6.7 µs | 26.2 µs |
+| sweep (256 levels) | 14.0 µs | 32.6 µs | 114.8 µs |
+| sweep (1024 levels) | 55.0 µs | 125.5 µs | 256.3 µs |
+
+![Latency Map](docs/latency_map.png)
 
 ---
 

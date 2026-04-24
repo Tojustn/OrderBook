@@ -30,14 +30,10 @@ AddResult OrderBook::addOrder(const Order& order){
     Order* slot = pool_.allocate(order);
     slot->setQuantity(result.remaining);
     orderMap_[order_id] = slot;
-    if(order_side == Side::BUY){
-        bids_.try_emplace(order_price, order_price);
-        bids_.at(order_price).addOrder(slot);
-    }
-    else{
-        asks_.try_emplace(order_price, order_price);
-        asks_.at(order_price).addOrder(slot);
-    }
+    auto& map = (order_side == Side::BUY) ? bids_ : asks_;
+    auto [it, inserted] = map.try_emplace(order_price, order_price);
+    it->second.addOrder(slot);
+    slot->level_ = &it->second;
     return AddResult::ADDED;
 }
 
@@ -47,16 +43,12 @@ CancelResult OrderBook::cancelOrder(const OrderId orderId){
     if (it == orderMap_.end()) return CancelResult::NOT_FOUND;
     Order* order = it->second;
 
-    if(order->getSide() == Side::BUY){
-        PriceLevel& level = bids_.at(order->getPrice());
-        level.removeOrderById(order->getId());
-        if(level.getTotalQuantity() == 0)
+    PriceLevel* level = order->level_;
+    level->removeOrderById(order->getId());
+    if(level->getTotalQuantity() == 0){
+        if(order->getSide() == Side::BUY)
             bids_.erase(order->getPrice());
-    }
-    else{
-        PriceLevel& level = asks_.at(order->getPrice());
-        level.removeOrderById(order->getId());
-        if(level.getTotalQuantity() == 0)
+        else
             asks_.erase(order->getPrice());
     }
 
@@ -149,17 +141,8 @@ ModifyResult OrderBook::modifyOrder(const OrderId orderId, const Quantity newQua
     }
     else{
         const Quantity currentQuantity = it->second->getQuantity();
-        const Side side = it->second->getSide();
-        const Price price = it->second->getPrice();
-
         it->second->setQuantity(newQuantity);
-
-        if(side == Side::BUY){
-            bids_.at(price).modifyOrderQuantity(newQuantity - currentQuantity);
-        }
-        else{
-            asks_.at(price).modifyOrderQuantity(newQuantity - currentQuantity);
-        }
+        it->second->level_->modifyOrderQuantity(newQuantity - currentQuantity);
         return ModifyResult::SUCCESS;
         
     }

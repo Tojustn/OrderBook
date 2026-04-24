@@ -1,5 +1,8 @@
 #pragma once
 #include "types.hpp"
+
+class PriceLevel;
+
 class Order{
     public:
         Order(OrderId id, Side side, Price price, Quantity quantity, UserId userId)
@@ -13,7 +16,7 @@ class Order{
 
         Order* next_ = nullptr;
         Order* prev_ = nullptr;
-        
+        PriceLevel* level_ = nullptr;        
         void setQuantity(const Quantity quantity) noexcept { quantity_ = quantity;}
     private:
         Price price_; // in PPU (price per unit)
