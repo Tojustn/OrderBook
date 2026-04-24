@@ -3,7 +3,7 @@
 class Order{
     public:
         Order(OrderId id, Side side, Price price, Quantity quantity, UserId userId)
-            : id_(id), side_(side), price_(price), quantity_(quantity), userId_(userId) {}
+            : price_(price), id_(id), quantity_(quantity), userId_(userId), side_(side) {}
 
         OrderId getId() const noexcept { return id_; }
         Side getSide() const noexcept { return side_; }
@@ -17,10 +17,10 @@ class Order{
         void setQuantity(const Quantity quantity) noexcept { quantity_ = quantity;}
     private:
         Price price_; // in PPU (price per unit)
-        Side side_;
         OrderId id_;
         Quantity quantity_;
         UserId userId_;
+        Side side_;
 
         
 };
