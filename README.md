@@ -64,16 +64,13 @@ High-performance C++20 limit order book designed for ultra-low latency trading s
 
 ---
 
-### Design Tradeoff: `std::map` vs `std::array`
+### Design Tradeoff: `std::map` vs `std::vector`
 
-A `std::array`-based price ladder was evaluated as an alternative to `std::map` for O(1) indexed price access. While arrays provide constant-time lookup, they require a fixed price range and tick size, tightly coupling the engine to a specific instrument.
+A flat sorted vector was evaluated as an alternative to `std::map` for improved cache locality. Initial microbenchmarks showed ~2x better median latency due to contiguous memory layout.
 
-In contrast, `std::map` provides:
-- full price-range flexibility (any instrument, any tick size)
-- memory proportional to active price levels (sparse efficiency)
-- acceptable log(n) overhead relative to matching and traversal cost
+However, the vector approach is fundamentally incompatible with the MBO design: inserting a new price level shifts elements in memory, invalidating all existing `Order::level_` pointers. When a cancel dereferences a stale pointer → segfault.
 
-Given that real-world books are sparse across large price spaces, the map-based design avoids significant memory waste and maintains flexibility without measurable latency degradation in observed benchmarks.
+`std::map` nodes never move in memory — inserting a new key leaves all existing nodes untouched, so `level_` pointers remain valid indefinitely. Pointer stability is a hard requirement for O(1) cancel and modify, making `std::map` the correct choice despite its cache overhead.
 
 ---
 
