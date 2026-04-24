@@ -1,8 +1,8 @@
 #include "order_book.hpp"
 #include "price_level.hpp"
 #include "types.hpp"
-#include <list>
-#include <map>
+#include <algorithm>
+
 // Not a pointer as a param since caller doesnt manage memory
 void OrderBook::fillOrder(PriceLevel& level) {
     Order* filled = level.popFront();
@@ -13,6 +13,18 @@ void OrderBook::fillOrder(PriceLevel& level) {
 OrderBook::~OrderBook() {
     for (auto& [id, order] : orderMap_) {
         pool_.deallocate(order);
+    }
+}
+
+// O(logn) Returns iterator to the PriceLevel from the std::vector::iterator
+std::vector<PriceLevel>::iterator OrderBook::findPriceLevel(const Price price, const Side side){
+    if(side == Side::BUY){
+        return std::lower_bound(bids_.begin(), bids_.end(), price, 
+        [](const PriceLevel& level, const Price price){return level.getPrice() > price;});
+    }
+    else{
+        return std::lower_bound(asks_.begin(), asks_.end(), price, 
+        [](const PriceLevel& level, const Price price){return level.getPrice() < price;});
     }
 }
 
@@ -30,10 +42,19 @@ AddResult OrderBook::addOrder(const Order& order){
     Order* slot = pool_.allocate(order);
     slot->setQuantity(result.remaining);
     orderMap_[order_id] = slot;
-    auto& map = (order_side == Side::BUY) ? bids_ : asks_;
-    auto [it, inserted] = map.try_emplace(order_price, order_price);
-    it->second.addOrder(slot);
-    slot->level_ = &it->second;
+    // Check if PriceLevel exists
+    auto it = findPriceLevel(order_price, order_side);
+    if(order_side == Side::BUY){
+        // If the lower bound PriceLevel is not equal to the wanted pricelevel or iterator doesnt exists
+        if(it == bids_.end() || it->getPrice() != order_price)
+            it = bids_.insert(it, PriceLevel(order_price));
+    }
+    else{
+        if(it == asks_.end() || it->getPrice() != order_price)
+            it = asks_.insert(it, PriceLevel(order_price));
+    }
+    it->addOrder(slot);
+    slot->level_ = &(*it);
     return AddResult::ADDED;
 }
 
@@ -46,10 +67,14 @@ CancelResult OrderBook::cancelOrder(const OrderId orderId){
     PriceLevel* level = order->level_;
     level->removeOrderById(order->getId());
     if(level->getTotalQuantity() == 0){
-        if(order->getSide() == Side::BUY)
-            bids_.erase(order->getPrice());
-        else
-            asks_.erase(order->getPrice());
+        if(order->getSide() == Side::BUY){
+            auto level_it = bids_.begin() + (level - bids_.data());
+            bids_.erase(level_it);
+        }
+        else{
+            auto level_it = asks_.begin() + (level - asks_.data());
+            asks_.erase(level_it);
+        }
     }
 
     orderMap_.erase(orderId);
@@ -68,10 +93,10 @@ MatchResult OrderBook::matchOrder(const Order& order){
         // Then keep going if the buy matches the sell and check quantity because of the list it is FIFO
 
         auto it = asks_.begin();
-        while(it != asks_.end() && it->first <= price && remainingQuantity > 0){
-            PriceLevel& level = it->second;
+        while(it != asks_.end() && (*it).getPrice() <= price && remainingQuantity > 0){
+            PriceLevel& level = *it;
             while(level.getTotalQuantity() > 0 && remainingQuantity > 0){
-                const Order lowest_ask = it->second.front();
+                const Order lowest_ask = level.front();
                 if (lowest_ask.getUserId() == orderUserId){
                     return MatchResult{0, true};
                 }
@@ -79,11 +104,11 @@ MatchResult OrderBook::matchOrder(const Order& order){
 
                 // If the ask is not enough quantity
                 if(ask_quantity <= remainingQuantity){
-                    fillOrder(it->second);
+                    fillOrder(level);
                     remainingQuantity -= ask_quantity;
                 }
                 else{
-                    it->second.reduceFrontQuantity(remainingQuantity);
+                    level.reduceFrontQuantity(remainingQuantity);
                     remainingQuantity = 0;
                 }
             }
@@ -96,27 +121,27 @@ MatchResult OrderBook::matchOrder(const Order& order){
         
     }
     else{
-        auto it = bids_.rbegin();
-        while(it != bids_.rend() && it->first >= price && remainingQuantity > 0){
-            PriceLevel& level = it->second;
+        auto it = bids_.begin();
+        while(it != bids_.end() && (*it).getPrice() >= price && remainingQuantity > 0){
+            PriceLevel& level = *it;
             while(level.getTotalQuantity() > 0 && remainingQuantity > 0){
-                Order& highest_bid = it->second.front();
+                Order& highest_bid = level.front();
                 if(highest_bid.getUserId() == orderUserId){
                     return MatchResult{0, true};
                 }
                 const Quantity bid_quantity = highest_bid.getQuantity();
 
                 if(bid_quantity <= remainingQuantity){
-                    fillOrder(it->second);
+                    fillOrder(level);
                     remainingQuantity -= bid_quantity;
                 }
                 else{
-                    it->second.reduceFrontQuantity(remainingQuantity);
+                    level.reduceFrontQuantity(remainingQuantity);
                     remainingQuantity = 0;
                 }
             }
             if(level.getTotalQuantity() == 0)
-                it = std::reverse_iterator(bids_.erase(std::next(it).base()));
+                it = bids_.erase(it);
             else
                 ++it;
         }
