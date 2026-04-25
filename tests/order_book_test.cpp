@@ -1,15 +1,15 @@
 #include <catch2/catch_test_macros.hpp>
-#include <algorithm>
+#include <map>
 #include "order_book.hpp"
 #include "order.hpp"
 #include "types.hpp"
 
-static bool hasLevel(const std::vector<PriceLevel>& v, Price p) {
-    return std::any_of(v.begin(), v.end(), [p](const PriceLevel& l){ return l.getPrice() == p; });
+static bool hasLevel(const std::map<Price, PriceLevel>& m, Price p) {
+    return m.count(p) > 0;
 }
 
-static const PriceLevel& atLevel(const std::vector<PriceLevel>& v, Price p) {
-    return *std::find_if(v.begin(), v.end(), [p](const PriceLevel& l){ return l.getPrice() == p; });
+static const PriceLevel& atLevel(const std::map<Price, PriceLevel>& m, Price p) {
+    return m.at(p);
 }
 
 // ── addOrder ─────────────────────────────────────────────────────────────────
