@@ -1,7 +1,16 @@
 #include <catch2/catch_test_macros.hpp>
+#include <algorithm>
 #include "order_book.hpp"
 #include "order.hpp"
 #include "types.hpp"
+
+static bool hasLevel(const std::vector<PriceLevel>& v, Price p) {
+    return std::any_of(v.begin(), v.end(), [p](const PriceLevel& l){ return l.getPrice() == p; });
+}
+
+static const PriceLevel& atLevel(const std::vector<PriceLevel>& v, Price p) {
+    return *std::find_if(v.begin(), v.end(), [p](const PriceLevel& l){ return l.getPrice() == p; });
+}
 
 // ── addOrder ─────────────────────────────────────────────────────────────────
 
@@ -12,8 +21,8 @@ TEST_CASE("addOrder - buy order rests in bids", "[orderbook][add]") {
 
     auto& bids = book.getBids();
     REQUIRE(bids.size() == 1);
-    REQUIRE(bids.count(100) == 1);
-    CHECK(bids.at(100).getTotalQuantity() == 50);
+    REQUIRE(hasLevel(bids, 100));
+    CHECK(atLevel(bids, 100).getTotalQuantity() == 50);
 }
 
 TEST_CASE("addOrder - sell order rests in asks", "[orderbook][add]") {
@@ -23,8 +32,8 @@ TEST_CASE("addOrder - sell order rests in asks", "[orderbook][add]") {
 
     auto& asks = book.getAsks();
     REQUIRE(asks.size() == 1);
-    REQUIRE(asks.count(200) == 1);
-    CHECK(asks.at(200).getTotalQuantity() == 30);
+    REQUIRE(hasLevel(asks, 200));
+    CHECK(atLevel(asks, 200).getTotalQuantity() == 30);
 }
 
 TEST_CASE("addOrder - multiple buys at same price aggregate", "[orderbook][add]") {
@@ -36,7 +45,7 @@ TEST_CASE("addOrder - multiple buys at same price aggregate", "[orderbook][add]"
 
     auto& bids = book.getBids();
     REQUIRE(bids.size() == 1);
-    CHECK(bids.at(100).getTotalQuantity() == 80);
+    CHECK(atLevel(bids, 100).getTotalQuantity() == 80);
 }
 
 TEST_CASE("addOrder - different prices create separate levels", "[orderbook][add]") {
@@ -48,8 +57,8 @@ TEST_CASE("addOrder - different prices create separate levels", "[orderbook][add
 
     auto& bids = book.getBids();
     REQUIRE(bids.size() == 2);
-    CHECK(bids.at(100).getTotalQuantity() == 50);
-    CHECK(bids.at(200).getTotalQuantity() == 30);
+    CHECK(atLevel(bids, 100).getTotalQuantity() == 50);
+    CHECK(atLevel(bids, 200).getTotalQuantity() == 30);
 }
 
 TEST_CASE("addOrder - buy and sell go to separate sides", "[orderbook][add]") {
@@ -71,7 +80,7 @@ TEST_CASE("cancelOrder - cancels a buy order", "[orderbook][cancel]") {
     book.addOrder(order);
     book.cancelOrder(1);
 
-    CHECK(book.getBids().count(100) == 0);
+    CHECK(!hasLevel(book.getBids(), 100));
 }
 
 TEST_CASE("cancelOrder - cancels a sell order", "[orderbook][cancel]") {
@@ -80,7 +89,7 @@ TEST_CASE("cancelOrder - cancels a sell order", "[orderbook][cancel]") {
     book.addOrder(order);
     book.cancelOrder(1);
 
-    CHECK(book.getAsks().count(200) == 0);
+    CHECK(!hasLevel(book.getAsks(), 200));
 }
 
 TEST_CASE("cancelOrder - one order cancelled, other remains", "[orderbook][cancel]") {
@@ -91,7 +100,7 @@ TEST_CASE("cancelOrder - one order cancelled, other remains", "[orderbook][cance
     book.addOrder(order2);
     book.cancelOrder(1);
 
-    CHECK(book.getBids().at(100).getTotalQuantity() == 30);
+    CHECK(atLevel(book.getBids(), 100).getTotalQuantity() == 30);
 }
 
 TEST_CASE("cancelOrder - nonexistent order does nothing", "[orderbook][cancel]") {
@@ -100,7 +109,7 @@ TEST_CASE("cancelOrder - nonexistent order does nothing", "[orderbook][cancel]")
     book.addOrder(order);
     book.cancelOrder(999);
 
-    CHECK(book.getBids().at(100).getTotalQuantity() == 50);
+    CHECK(atLevel(book.getBids(), 100).getTotalQuantity() == 50);
 }
 
 TEST_CASE("cancelOrder - cancel same order twice is safe", "[orderbook][cancel]") {
@@ -110,21 +119,21 @@ TEST_CASE("cancelOrder - cancel same order twice is safe", "[orderbook][cancel]"
     book.cancelOrder(1);
     book.cancelOrder(1);
 
-    CHECK(book.getBids().count(100) == 0);
+    CHECK(!hasLevel(book.getBids(), 100));
 }
 
 TEST_CASE("cancelOrder - cancelling only order removes price level from bids", "[orderbook][cancel]") {
     OrderBook book;
     book.addOrder(Order(1, Side::BUY, 100, 50, 1));
     book.cancelOrder(1);
-    CHECK(book.getBids().count(100) == 0);
+    CHECK(!hasLevel(book.getBids(), 100));
 }
 
 TEST_CASE("cancelOrder - cancelling only order removes price level from asks", "[orderbook][cancel]") {
     OrderBook book;
     book.addOrder(Order(1, Side::SELL, 200, 30, 1));
     book.cancelOrder(1);
-    CHECK(book.getAsks().count(200) == 0);
+    CHECK(!hasLevel(book.getAsks(), 200));
 }
 
 // ── matching ──────────────────────────────────────────────────────────────────
@@ -144,8 +153,8 @@ TEST_CASE("matching - buy partially fills resting sell, remainder rests", "[orde
     book.addOrder(Order(2, Side::BUY, 100, 50, 2));
 
     CHECK(book.getAsks().empty());
-    REQUIRE(book.getBids().count(100) == 1);
-    CHECK(book.getBids().at(100).getTotalQuantity() == 20);
+    REQUIRE(hasLevel(book.getBids(), 100));
+    CHECK(atLevel(book.getBids(), 100).getTotalQuantity() == 20);
 }
 
 TEST_CASE("matching - buy sweeps multiple ask levels", "[orderbook][matching]") {
@@ -155,8 +164,8 @@ TEST_CASE("matching - buy sweeps multiple ask levels", "[orderbook][matching]") 
     book.addOrder(Order(3, Side::BUY, 101, 50, 3));
 
     CHECK(book.getAsks().empty());
-    REQUIRE(book.getBids().count(101) == 1);
-    CHECK(book.getBids().at(101).getTotalQuantity() == 10);
+    REQUIRE(hasLevel(book.getBids(), 101));
+    CHECK(atLevel(book.getBids(), 101).getTotalQuantity() == 10);
 }
 
 TEST_CASE("matching - buy price below ask, no match", "[orderbook][matching]") {
@@ -164,8 +173,8 @@ TEST_CASE("matching - buy price below ask, no match", "[orderbook][matching]") {
     book.addOrder(Order(1, Side::SELL, 102, 50, 1));
     book.addOrder(Order(2, Side::BUY, 100, 50, 2));
 
-    CHECK(book.getAsks().at(102).getTotalQuantity() == 50);
-    CHECK(book.getBids().at(100).getTotalQuantity() == 50);
+    CHECK(atLevel(book.getAsks(), 102).getTotalQuantity() == 50);
+    CHECK(atLevel(book.getBids(), 100).getTotalQuantity() == 50);
 }
 
 TEST_CASE("matching - sell fully fills resting buy", "[orderbook][matching]") {
@@ -183,8 +192,8 @@ TEST_CASE("matching - sell partially fills resting buy, remainder rests", "[orde
     book.addOrder(Order(2, Side::SELL, 100, 50, 2));
 
     CHECK(book.getBids().empty());
-    REQUIRE(book.getAsks().count(100) == 1);
-    CHECK(book.getAsks().at(100).getTotalQuantity() == 20);
+    REQUIRE(hasLevel(book.getAsks(), 100));
+    CHECK(atLevel(book.getAsks(), 100).getTotalQuantity() == 20);
 }
 
 TEST_CASE("matching - sell sweeps multiple bid levels", "[orderbook][matching]") {
@@ -194,8 +203,8 @@ TEST_CASE("matching - sell sweeps multiple bid levels", "[orderbook][matching]")
     book.addOrder(Order(3, Side::SELL, 100, 50, 3));
 
     CHECK(book.getBids().empty());
-    REQUIRE(book.getAsks().count(100) == 1);
-    CHECK(book.getAsks().at(100).getTotalQuantity() == 10);
+    REQUIRE(hasLevel(book.getAsks(), 100));
+    CHECK(atLevel(book.getAsks(), 100).getTotalQuantity() == 10);
 }
 
 // ── self-trade prevention ─────────────────────────────────────────────────────
@@ -206,7 +215,7 @@ TEST_CASE("stp - buy hits own resting sell, returns STP_CANCELLED", "[orderbook]
     AddResult result = book.addOrder(Order(2, Side::BUY, 100, 50, 1));
 
     CHECK(result == AddResult::STP_CANCELLED);
-    CHECK(book.getAsks().at(100).getTotalQuantity() == 50);
+    CHECK(atLevel(book.getAsks(), 100).getTotalQuantity() == 50);
     CHECK(book.getBids().empty());
 }
 
@@ -216,7 +225,7 @@ TEST_CASE("stp - sell hits own resting buy, returns STP_CANCELLED", "[orderbook]
     AddResult result = book.addOrder(Order(2, Side::SELL, 100, 50, 1));
 
     CHECK(result == AddResult::STP_CANCELLED);
-    CHECK(book.getBids().at(100).getTotalQuantity() == 50);
+    CHECK(atLevel(book.getBids(), 100).getTotalQuantity() == 50);
     CHECK(book.getAsks().empty());
 }
 
@@ -232,47 +241,41 @@ TEST_CASE("stp - different users match normally", "[orderbook][stp]") {
 
 TEST_CASE("stp - partial fill before own order, remainder cancelled", "[orderbook][stp]") {
     OrderBook book;
-    // userId=2 fills first (20 qty), then userId=1's own order blocks the rest
     book.addOrder(Order(1, Side::SELL, 100, 20, 2));
     book.addOrder(Order(2, Side::SELL, 100, 30, 1));
     AddResult result = book.addOrder(Order(3, Side::BUY, 100, 50, 1));
 
     CHECK(result == AddResult::STP_CANCELLED);
-    // own sell still resting intact
-    CHECK(book.getAsks().at(100).getTotalQuantity() == 30);
-    // remainder of buy not rested
+    CHECK(atLevel(book.getAsks(), 100).getTotalQuantity() == 30);
     CHECK(book.getBids().empty());
 }
 
 // ── modifyOrder ─────────────────────────────────────────────────────────────
 
-// Invalid input
 TEST_CASE("modifyOrder - negative quantity returns INVALID_QUANTITY", "[orderbook][modify]") {
     OrderBook book;
     book.addOrder(Order(1, Side::BUY, 100, 50, 1));
     CHECK(book.modifyOrder(1, -1) == ModifyResult::INVALID_QUANTITY);
-    CHECK(book.getBids().at(100).getTotalQuantity() == 50);
+    CHECK(atLevel(book.getBids(), 100).getTotalQuantity() == 50);
 }
 
-// Order not found
 TEST_CASE("modifyOrder - nonexistent order returns ORDER_NOT_FOUND", "[orderbook][modify]") {
     OrderBook book;
     CHECK(book.modifyOrder(999, 50) == ModifyResult::ORDER_NOT_FOUND);
 }
 
-// Zero quantity (cancel path)
 TEST_CASE("modifyOrder - zero quantity cancels buy order", "[orderbook][modify]") {
     OrderBook book;
     book.addOrder(Order(1, Side::BUY, 100, 50, 1));
     CHECK(book.modifyOrder(1, 0) == ModifyResult::SUCCESS);
-    CHECK(book.getBids().count(100) == 0);
+    CHECK(!hasLevel(book.getBids(), 100));
 }
 
 TEST_CASE("modifyOrder - zero quantity cancels sell order", "[orderbook][modify]") {
     OrderBook book;
     book.addOrder(Order(1, Side::SELL, 200, 30, 1));
     CHECK(book.modifyOrder(1, 0) == ModifyResult::SUCCESS);
-    CHECK(book.getAsks().count(200) == 0);
+    CHECK(!hasLevel(book.getAsks(), 200));
 }
 
 TEST_CASE("modifyOrder - zero quantity on nonexistent order returns ORDER_NOT_FOUND", "[orderbook][modify]") {
@@ -280,42 +283,40 @@ TEST_CASE("modifyOrder - zero quantity on nonexistent order returns ORDER_NOT_FO
     CHECK(book.modifyOrder(999, 0) == ModifyResult::ORDER_NOT_FOUND);
 }
 
-// Quantity update
 TEST_CASE("modifyOrder - increase buy order quantity", "[orderbook][modify]") {
     OrderBook book;
     book.addOrder(Order(1, Side::BUY, 100, 50, 1));
     CHECK(book.modifyOrder(1, 80) == ModifyResult::SUCCESS);
-    CHECK(book.getBids().at(100).getTotalQuantity() == 80);
+    CHECK(atLevel(book.getBids(), 100).getTotalQuantity() == 80);
 }
 
 TEST_CASE("modifyOrder - decrease buy order quantity", "[orderbook][modify]") {
     OrderBook book;
     book.addOrder(Order(1, Side::BUY, 100, 50, 1));
     CHECK(book.modifyOrder(1, 20) == ModifyResult::SUCCESS);
-    CHECK(book.getBids().at(100).getTotalQuantity() == 20);
+    CHECK(atLevel(book.getBids(), 100).getTotalQuantity() == 20);
 }
 
 TEST_CASE("modifyOrder - increase sell order quantity", "[orderbook][modify]") {
     OrderBook book;
     book.addOrder(Order(1, Side::SELL, 200, 30, 1));
     CHECK(book.modifyOrder(1, 60) == ModifyResult::SUCCESS);
-    CHECK(book.getAsks().at(200).getTotalQuantity() == 60);
+    CHECK(atLevel(book.getAsks(), 200).getTotalQuantity() == 60);
 }
 
 TEST_CASE("modifyOrder - decrease sell order quantity", "[orderbook][modify]") {
     OrderBook book;
     book.addOrder(Order(1, Side::SELL, 200, 30, 1));
     CHECK(book.modifyOrder(1, 10) == ModifyResult::SUCCESS);
-    CHECK(book.getAsks().at(200).getTotalQuantity() == 10);
+    CHECK(atLevel(book.getAsks(), 200).getTotalQuantity() == 10);
 }
 
-// Multi-order level isolation
 TEST_CASE("modifyOrder - multiple orders at level, only target modified", "[orderbook][modify]") {
     OrderBook book;
     book.addOrder(Order(1, Side::BUY, 100, 50, 1));
     book.addOrder(Order(2, Side::BUY, 100, 30, 2));
     book.modifyOrder(1, 20);
-    CHECK(book.getBids().at(100).getTotalQuantity() == 50); // 20 + 30
+    CHECK(atLevel(book.getBids(), 100).getTotalQuantity() == 50); // 20 + 30
 }
 
 TEST_CASE("modifyOrder - zero quantity with multiple orders at level, other remains", "[orderbook][modify]") {
@@ -323,6 +324,6 @@ TEST_CASE("modifyOrder - zero quantity with multiple orders at level, other rema
     book.addOrder(Order(1, Side::BUY, 100, 50, 1));
     book.addOrder(Order(2, Side::BUY, 100, 30, 2));
     book.modifyOrder(1, 0);
-    REQUIRE(book.getBids().count(100) == 1);
-    CHECK(book.getBids().at(100).getTotalQuantity() == 30);
+    REQUIRE(hasLevel(book.getBids(), 100));
+    CHECK(atLevel(book.getBids(), 100).getTotalQuantity() == 30);
 }
