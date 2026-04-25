@@ -21,7 +21,9 @@ High-performance C++20 limit order book designed for ultra-low latency trading s
 | sweep (256 levels) | 14.0 µs | 32.6 µs | 114.8 µs |
 | sweep (1024 levels) | 55.0 µs | 125.5 µs | 256.3 µs |
 
-![Latency Map](docs/latency_map.png)
+![Latency Comparison](docs/latency_combined.png)
+
+KDE latency distribution across three implementations replayed against the same 12M+ BTC L2 event stream: `std::map`, `std::vector` (ascending price levels), and `std::vector` with bids/asks reversed (best price at back). All distributions clipped at p95.
 
 ---
 
@@ -64,16 +66,17 @@ High-performance C++20 limit order book designed for ultra-low latency trading s
 
 ---
 
-### Design Tradeoff: `std::map` vs `std::array`
+### Design Tradeoff: `std::map` vs `std::vector`
 
-A `std::array`-based price ladder was evaluated as an alternative to `std::map` for O(1) indexed price access. While arrays provide constant-time lookup, they require a fixed price range and tick size, tightly coupling the engine to a specific instrument.
+Both `std::map` and `std::vector`-based price ladders were benchmarked against the same 12M+ real BTC L2 event stream.
 
-In contrast, `std::map` provides:
+`std::vector` was evaluated in two configurations: sorted ascending (best price at back) and sorted descending (best price at front). Both vector variants showed comparable or worse p50 latency than `std::map` in practice, driven by the O(n) insert/erase cost on level creation and deletion during sweeps.
+
+`std::map` was retained as the production implementation because it provides:
+- O(log n) insert/erase with no shifting cost
 - full price-range flexibility (any instrument, any tick size)
 - memory proportional to active price levels (sparse efficiency)
-- acceptable log(n) overhead relative to matching and traversal cost
-
-Given that real-world books are sparse across large price spaces, the map-based design avoids significant memory waste and maintains flexibility without measurable latency degradation in observed benchmarks.
+- consistent latency without pathological cases on sweep-heavy workloads
 
 ---
 
