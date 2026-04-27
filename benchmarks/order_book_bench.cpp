@@ -5,15 +5,23 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <vector>
-
 #ifdef _MSC_VER
 #  include <intrin.h>
-static inline uint64_t rdtsc() { return __rdtsc(); }
+static inline uint64_t rdtsc_start() { return __rdtsc(); }
+static inline uint64_t rdtsc_end() { return __rdtsc(); }
 #else
-static inline uint64_t rdtsc() {
+static inline uint64_t rdtsc_start() {
+    __builtin_ia32_lfence();
     unsigned int lo, hi;
     __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    return (static_cast<uint64_t>(hi) << 32) | lo;
+}
+static inline uint64_t rdtsc_end() {
+    unsigned int lo, hi, aux;
+    __asm__ __volatile__("rdtscp" : "=a"(lo), "=d"(hi), "=c"(aux));
+    __builtin_ia32_lfence();
     return (static_cast<uint64_t>(hi) << 32) | lo;
 }
 #endif
@@ -22,9 +30,9 @@ static inline uint64_t rdtsc() {
 static double ns_per_cycle() {
     using clk = std::chrono::steady_clock;
     const auto     wall0 = clk::now();
-    const uint64_t cyc0  = rdtsc();
+    const uint64_t cyc0  = rdtsc_start();
     while (std::chrono::duration<double>(clk::now() - wall0).count() < 0.1) {}
-    const uint64_t cyc1  = rdtsc();
+    const uint64_t cyc1  = rdtsc_end();
     const auto     wall1 = clk::now();
     const double   ns    = std::chrono::duration<double, std::nano>(wall1 - wall0).count();
     return ns / static_cast<double>(cyc1 - cyc0);
@@ -61,9 +69,9 @@ int main() {
         for (int i = 0; i < N_SAMPLES; i++) {
             const Order o(PREPOP + i, Side::BUY, 5000, 50, PREPOP + i);
 
-            const uint64_t t0 = rdtsc();
+            const uint64_t t0 = rdtsc_start();
             book.addOrder(o);
-            const uint64_t t1 = rdtsc();
+            const uint64_t t1 = rdtsc_end();
             samples.push_back(t1 - t0);
         }
         report("addOrder (no match)", samples, ns);
@@ -78,9 +86,9 @@ int main() {
 
         for (int i = 0; i < N_SAMPLES; i++) {
             const Order o(2, Side::BUY, 10000, 50, 2);
-            const uint64_t t0 = rdtsc();
+            const uint64_t t0 = rdtsc_start();
             books[i].addOrder(o);
-            const uint64_t t1 = rdtsc();
+            const uint64_t t1 = rdtsc_end();
             samples.push_back(t1 - t0);
         }
         report("addOrder (full match)", samples, ns);
@@ -94,9 +102,9 @@ int main() {
             book.addOrder(Order(j, Side::BUY, 9500 + j, 10, j + 1));
 
         for (int i = 0; i < N_SAMPLES; i++) {
-            const uint64_t t0 = rdtsc();
+            const uint64_t t0 = rdtsc_start();
             book.cancelOrder(PREPOP + i);
-            const uint64_t t1 = rdtsc();
+            const uint64_t t1 = rdtsc_end();
             samples.push_back(t1 - t0);
         }
         report("cancelOrder", samples, ns);
@@ -113,9 +121,9 @@ int main() {
                 book.addOrder(Order(j, Side::SELL, 10000 + j, 10, j + 1));
             const Order o(N_SAMPLES + i, Side::BUY, 10000 + levels, 9999, N_SAMPLES + i);
 
-            const uint64_t t0 = rdtsc();
+            const uint64_t t0 = rdtsc_start();
             book.addOrder(o);
-            const uint64_t t1 = rdtsc();
+            const uint64_t t1 = rdtsc_end();
             samples.push_back(t1 - t0);
         }
         report(name, samples, ns);
