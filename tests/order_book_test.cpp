@@ -4,12 +4,12 @@
 #include "order.hpp"
 #include "types.hpp"
 
-static bool hasLevel(const std::map<Price, PriceLevel>& m, Price p) {
+static bool hasLevel(const std::map<Price, PriceLevel*>& m, Price p) {
     return m.count(p) > 0;
 }
 
-static const PriceLevel& atLevel(const std::map<Price, PriceLevel>& m, Price p) {
-    return m.at(p);
+static const PriceLevel& atLevel(const std::map<Price, PriceLevel*>& m, Price p) {
+    return *m.at(p);
 }
 
 // ── addOrder ─────────────────────────────────────────────────────────────────

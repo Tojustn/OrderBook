@@ -5,7 +5,8 @@
 #include <unordered_map>
 class PriceLevel{
     public:
-        explicit PriceLevel(Price price): price_(price), head_(nullptr), tail_(nullptr){};
+        PriceLevel() = default;
+        explicit PriceLevel(Price price): head_(nullptr), tail_(nullptr){};
 
         void addOrder(Order* order);
         void removeOrderById(OrderId id);
@@ -17,12 +18,15 @@ class PriceLevel{
         Order& front();
         const Order& front() const;
 
-    private:
-        Price price_;
 
+        PriceLevel* next_ = nullptr;
+
+    private:
         // Use both a head and a tail for O(1) insertion
         Order* head_;
         Order* tail_;
+        
+        // Only used for pooling
 
         // map for O(1) deletion
         std::unordered_map<OrderId, Order*> orderMap_;

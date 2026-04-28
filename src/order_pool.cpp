@@ -9,15 +9,13 @@ Order* OrderPool::allocate(const Order& order) {
         slot = head_;
         head_ = head_->next_;
     } else {
-        slot = new Order(order); 
+        slot = new Order();  
     }
     *slot = order;
-
     slot->next_ = nullptr;
     slot->prev_ = nullptr;
     return slot;
 }
-
 
 // Add a order to the pool
 void OrderPool::deallocate(Order* order) {

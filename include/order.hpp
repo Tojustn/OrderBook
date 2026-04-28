@@ -8,6 +8,8 @@ class Order{
         Order(OrderId id, Side side, Price price, Quantity quantity, UserId userId)
             : price_(price), id_(id), quantity_(quantity), userId_(userId), side_(side) {}
 
+        Order() = default;
+
         OrderId getId() const noexcept { return id_; }
         Side getSide() const noexcept { return side_; }
         Price getPrice() const noexcept { return price_; }

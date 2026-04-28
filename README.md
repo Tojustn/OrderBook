@@ -9,17 +9,17 @@ High-performance C++20 limit order book designed for ultra-low latency trading s
 
 ---
 
-## Performance (Linux / WSL2, GCC Release)
+## Performance (Linux Native / Ubuntu, GCC Release)
 
 | Operation | p50 | p99 | p99.9 |
 |----------|-----|-----|-------|
-| addOrder (no match) | 59.7 ns | 2.4 µs | 11.3 µs |
-| addOrder (full match) | 50.0 ns | 279.9 ns | 570.4 ns |
-| cancelOrder | 90.1 ns | 520.4 ns | 880.6 ns |
-| sweep (8 levels) | 410.3 ns | 840.6 ns | 1.5 µs |
-| sweep (64 levels) | 3.4 µs | 6.4 µs | 21.7 µs |
-| sweep (256 levels) | 13.9 µs | 28.0 µs | 68.7 µs |
-| sweep (1024 levels) | 54.5 µs | 110.4 µs | 200.9 µs |
+| addOrder (no match) | 60.1 ns | 1.5 µs | 4.0 µs |
+| addOrder (full match) | 50.1 ns | 230.4 ns | 410.8 ns |
+| cancelOrder | 80.2 ns | 480.9 ns | 981.9 ns |
+| sweep (8 levels) | 360.7 ns | 390.7 ns | 701.3 ns |
+| sweep (64 levels) | 2.8 µs | 4.7 µs | 6.5 µs |
+| sweep (256 levels) | 11.5 µs | 18.9 µs | 22.1 µs |
+| sweep (1024 levels) | 45.4 µs | 59.8 µs | 83.1 µs |
 
 ![Latency Comparison](docs/latency_combined.png)
 
@@ -60,7 +60,7 @@ KDE latency distribution across three implementations replayed against the same 
 ---
 
 ### Memory Management
-- Custom `OrderPool` using free-list recycling
+- Custom `OrderPool` and `PriceLevelPool` using free-list recycling
 - Recycled slots reused via in-place assignment — no heap allocation on the hot path
 - Designed for steady-state zero-allocation behavior
 
