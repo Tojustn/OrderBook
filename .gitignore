@@ -52,3 +52,5 @@ compile_commands.json
 
 # Data
 data/
+
+.venv/

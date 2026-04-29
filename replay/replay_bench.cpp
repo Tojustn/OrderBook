@@ -96,7 +96,7 @@ int main(){
 
         uint64_t t0{0};
         uint64_t t1{0};
-        uint64_t time_diff{0};
+        double time_diff{0};
         if (op == 'A') {
             if (levelSet.find(key) == levelSet.end()) {
                 t0 = rdtsc();
