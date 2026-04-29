@@ -33,22 +33,22 @@ TEST_CASE("PriceLevel - addOrder multiple orders aggregates quantity", "[pricele
     CHECK(level.getTotalQuantity() == 80);
 }
 
-TEST_CASE("PriceLevel - removeOrderById removes order", "[pricelevel][remove]") {
+TEST_CASE("PriceLevel - removeOrder removes order", "[pricelevel][remove]") {
     PriceLevel level(100);
     Order order(1, Side::BUY, 100, 50, 1);
     level.addOrder(&order);
-    level.removeOrderById(1);
+    level.removeOrder(&order);
 
     CHECK(level.getOrders() == nullptr);
 }
 
-TEST_CASE("PriceLevel - removeOrderById decreases total quantity", "[pricelevel][remove]") {
+TEST_CASE("PriceLevel - removeOrder decreases total quantity", "[pricelevel][remove]") {
     PriceLevel level(100);
     Order o1(1, Side::BUY, 100, 50, 1);
     Order o2(2, Side::BUY, 100, 30, 2);
     level.addOrder(&o1);
     level.addOrder(&o2);
-    level.removeOrderById(1);
+    level.removeOrder(&o1);
 
     CHECK(level.getTotalQuantity() == 30);
     CHECK(countOrders(level.getOrders()) == 1);

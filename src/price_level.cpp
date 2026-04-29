@@ -1,11 +1,8 @@
 #include "price_level.hpp"
 #include "types.hpp"
-#include "order_pool.hpp"
 
 void PriceLevel::addOrder(Order* order) {
     totalQuantity_ += order->getQuantity();
-
-    orderMap_[order->getId()] = order;
 
     if (!tail_) {
         head_ = tail_ = order;
@@ -36,17 +33,8 @@ void PriceLevel::removeOrder(Order* order) {
     }
 
     totalQuantity_ -= order->getQuantity();
-    orderMap_.erase(order->getId());
-
     order->next_ = nullptr;
     order->prev_ = nullptr;
-}
-
-void PriceLevel::removeOrderById(OrderId orderId) {
-    if (auto it = orderMap_.find(orderId); it != orderMap_.end()) {
-        Order* order = it->second; 
-        removeOrder(order);     
-    }
 }
 void PriceLevel::reduceFrontQuantity(Quantity qty) noexcept {
     head_->setQuantity(head_->getQuantity() - qty);

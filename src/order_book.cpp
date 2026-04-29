@@ -52,7 +52,7 @@ CancelResult OrderBook::cancelOrder(const OrderId orderId){
     Order* order = it->second;
 
     PriceLevel* level = order->level_;
-    level->removeOrderById(order->getId());
+    level->removeOrder(order);
     if(level->getTotalQuantity() == 0){
         if(order->getSide() == Side::BUY)
             bids_.erase(order->getPrice());

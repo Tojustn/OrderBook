@@ -13,13 +13,13 @@ High-performance C++20 limit order book designed for ultra-low latency trading s
 
 | Operation | p50 | p99 | p99.9 |
 |----------|-----|-----|-------|
-| addOrder (no match) | 60.1 ns | 1.5 µs | 4.0 µs |
-| addOrder (full match) | 50.1 ns | 230.4 ns | 410.8 ns |
-| cancelOrder | 80.2 ns | 480.9 ns | 981.9 ns |
-| sweep (8 levels) | 360.7 ns | 390.7 ns | 701.3 ns |
-| sweep (64 levels) | 2.8 µs | 4.7 µs | 6.5 µs |
-| sweep (256 levels) | 11.5 µs | 18.9 µs | 22.1 µs |
-| sweep (1024 levels) | 45.4 µs | 59.8 µs | 83.1 µs |
+| addOrder (no match) | 50.1 ns | 1.4 µs | 4.0 µs |
+| addOrder (full match) | 40.1 ns | 110.2 ns | 350.7 ns |
+| cancelOrder | 70.1 ns | 410.8 ns | 921.7 ns |
+| sweep (8 levels) | 250.5 ns | 280.5 ns | 310.6 ns |
+| sweep (64 levels) | 2.0 µs | 2.1 µs | 5.7 µs |
+| sweep (256 levels) | 8.7 µs | 11.8 µs | 14.7 µs |
+| sweep (1024 levels) | 33.4 µs | 39.1 µs | 54.9 µs |
 
 ![Latency Comparison](docs/latency_combined.png)
 
