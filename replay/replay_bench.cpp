@@ -100,7 +100,7 @@ int main(){
         if (op == 'A') {
             if (levelSet.find(key) == levelSet.end()) {
                 t0 = rdtsc();
-                orderBook.addOrder(Order{key, side, price, size, userId});
+                orderBook.addOrder(OrderType::GOOD_TILL_CANCEL, Order{key, side, price, size, userId});
                 t1 = rdtsc();
                 levelSet.insert(key);
             } else {

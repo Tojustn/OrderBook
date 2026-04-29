@@ -64,13 +64,13 @@ int main() {
         samples.clear();
         OrderBook book;
         for (int j = 0; j < PREPOP; j++)
-            book.addOrder(Order(j, Side::BUY, 9500 + j, 10, j + 1));
+            book.addOrder(OrderType::GOOD_TILL_CANCEL, Order(j, Side::BUY, 9500 + j, 10, j + 1));
 
         for (int i = 0; i < N_SAMPLES; i++) {
             const Order o(PREPOP + i, Side::BUY, 5000, 50, PREPOP + i);
 
             const uint64_t t0 = rdtsc_start();
-            book.addOrder(o);
+            book.addOrder(OrderType::GOOD_TILL_CANCEL, o);
             const uint64_t t1 = rdtsc_end();
             samples.push_back(t1 - t0);
         }
@@ -82,12 +82,12 @@ int main() {
         samples.clear();
         std::vector<OrderBook> books(N_SAMPLES);
         for (int i = 0; i < N_SAMPLES; i++)
-            books[i].addOrder(Order(1, Side::SELL, 10000, 50, 1));
+            books[i].addOrder(OrderType::GOOD_TILL_CANCEL, Order(1, Side::SELL, 10000, 50, 1));
 
         for (int i = 0; i < N_SAMPLES; i++) {
             const Order o(2, Side::BUY, 10000, 50, 2);
             const uint64_t t0 = rdtsc_start();
-            books[i].addOrder(o);
+            books[i].addOrder(OrderType::GOOD_TILL_CANCEL, o);
             const uint64_t t1 = rdtsc_end();
             samples.push_back(t1 - t0);
         }
@@ -99,7 +99,7 @@ int main() {
         samples.clear();
         OrderBook book;
         for (int j = 0; j < PREPOP + N_SAMPLES; j++)
-            book.addOrder(Order(j, Side::BUY, 9500 + j, 10, j + 1));
+            book.addOrder(OrderType::GOOD_TILL_CANCEL, Order(j, Side::BUY, 9500 + j, 10, j + 1));
 
         for (int i = 0; i < N_SAMPLES; i++) {
             const uint64_t t0 = rdtsc_start();
@@ -118,11 +118,11 @@ int main() {
         for (int i = 0; i < N_SAMPLES; i++) {
             OrderBook book;
             for (int j = 0; j < levels; j++)
-                book.addOrder(Order(j, Side::SELL, 10000 + j, 10, j + 1));
+                book.addOrder(OrderType::GOOD_TILL_CANCEL, Order(j, Side::SELL, 10000 + j, 10, j + 1));
             const Order o(N_SAMPLES + i, Side::BUY, 10000 + levels, 9999, N_SAMPLES + i);
 
             const uint64_t t0 = rdtsc_start();
-            book.addOrder(o);
+            book.addOrder(OrderType::GOOD_TILL_CANCEL, o);
             const uint64_t t1 = rdtsc_end();
             samples.push_back(t1 - t0);
         }

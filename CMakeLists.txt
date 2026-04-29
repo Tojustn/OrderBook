@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.15)
 project(OrderBookEngine VERSION 1.0.0 LANGUAGES CXX)
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
+  set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# Makes a compile_commands.json for clang
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native")
 set(CMAKE_CXX_STANDARD 20)  # Changed to 20
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,16 +24,16 @@ target_include_directories(orderbook PUBLIC
 )
 
 if(BUILD_TESTS)
-    enable_testing()
-    add_subdirectory(tests)
+  enable_testing()
+  add_subdirectory(tests)
 endif()
 
 if(BUILD_BENCHMARKS)
-    add_subdirectory(benchmarks)
+  add_subdirectory(benchmarks)
 endif()
 
 option(BUILD_REPLAY "Build replay latency tool" ON)
 
 if(BUILD_REPLAY)
-    add_subdirectory(replay)
+  add_subdirectory(replay)
 endif()

@@ -14,12 +14,12 @@ High-performance C++20 limit order book designed for ultra-low latency trading s
 | Operation | p50 | p99 | p99.9 |
 |----------|-----|-----|-------|
 | addOrder (no match) | 50.1 ns | 1.4 µs | 4.0 µs |
-| addOrder (full match) | 40.1 ns | 110.2 ns | 350.7 ns |
-| cancelOrder | 70.1 ns | 410.8 ns | 921.7 ns |
-| sweep (8 levels) | 250.5 ns | 280.5 ns | 310.6 ns |
-| sweep (64 levels) | 2.0 µs | 2.1 µs | 5.7 µs |
-| sweep (256 levels) | 8.7 µs | 11.8 µs | 14.7 µs |
-| sweep (1024 levels) | 33.4 µs | 39.1 µs | 54.9 µs |
+| addOrder (full match) | 40.1 ns | 120.2 ns | 320.6 ns |
+| cancelOrder | 60.1 ns | 410.8 ns | 871.7 ns |
+| sweep (8 levels) | 250.5 ns | 450.9 ns | 691.3 ns |
+| sweep (64 levels) | 2.0 µs | 2.1 µs | 5.4 µs |
+| sweep (256 levels) | 8.7 µs | 12.2 µs | 14.9 µs |
+| sweep (1024 levels) | 32.3 µs | 36.6 µs | 50.1 µs |
 
 ![Latency Comparison](docs/latency_combined.png)
 
@@ -80,12 +80,23 @@ Both `std::map` and `std::vector`-based price ladders were benchmarked against t
 
 ---
 
+## Order Types
+
+| Type | Behaviour |
+|------|-----------|
+| `GOOD_TILL_CANCEL` | Rests in book until explicitly cancelled or fully filled |
+| `FILL_AND_KILL` | Fills what it can immediately, remainder discarded |
+| `MARKET_ORDER` | No price specified — fills at best available price, remainder discarded |
+
+---
+
 ## Matching Logic
 
 - Buy orders walk asks upward while price condition holds
 - Sell orders walk bids downward
 - Fully consumed levels are erased from active book
 - Self-trade prevention cancels internal matches at source
+- `bestBid_` / `bestAsk_` maintained as O(1) cached pointers to top-of-book price levels
 
 ---
 

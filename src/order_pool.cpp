@@ -3,8 +3,8 @@
 #include "types.hpp"
 
 // Allocate a Order from the Pool to a Order from the OrderBook
-Order *OrderPool::allocate(const Order &order) {
-  Order *slot = nullptr;
+Order* OrderPool::allocate(const Order& order) {
+  Order* slot = nullptr;
   if (head_) {
     slot = head_;
     head_ = head_->next_;
@@ -18,14 +18,14 @@ Order *OrderPool::allocate(const Order &order) {
 }
 
 // Add a order to the pool
-void OrderPool::deallocate(Order *order) {
+void OrderPool::deallocate(Order* order) {
   order->next_ = head_;
   head_ = order;
 }
 
 OrderPool::~OrderPool() {
   while (head_) {
-    Order *next = head_->next_;
+    Order* next = head_->next_;
     delete head_;
     head_ = next;
   }

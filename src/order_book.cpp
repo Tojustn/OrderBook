@@ -1,158 +1,184 @@
 #include "order_book.hpp"
-#include "price_level_pool.hpp"
 #include "price_level.hpp"
+#include "price_level_pool.hpp"
 #include "types.hpp"
-#include <list>
-#include <map>
 // Not a pointer as a param since caller doesnt manage memory
 void OrderBook::fillOrder(PriceLevel& level) {
-    Order* filled = level.popFront();
-    orderMap_.erase(filled->getId());
-    order_pool_.deallocate(filled);
+  Order* filled = level.popFront();
+  orderMap_.erase(filled->getId());
+  order_pool_.deallocate(filled);
 }
 
 OrderBook::~OrderBook() {
-    for (auto& [id, order] : orderMap_) {
-        order_pool_.deallocate(order);
-    }
-    for (auto& [price, level] : bids_) {
-        price_level_pool_.deallocate(level);
-    }
-    for (auto& [price, level] : asks_) {
-        price_level_pool_.deallocate(level);
-    }
+  for (auto& [id, order] : orderMap_) {
+    order_pool_.deallocate(order);
+  }
+  for (auto& [price, level] : bids_) {
+    price_level_pool_.deallocate(level);
+  }
+  for (auto& [price, level] : asks_) {
+    price_level_pool_.deallocate(level);
+  }
 }
 
-AddResult OrderBook::addOrder(const Order& order){
-    const Price order_price = order.getPrice();
-    const Side order_side = order.getSide();
-    const OrderId order_id = order.getId();
-    const MatchResult result = matchOrder(order);
-    if(result.stpTriggered){
-        return AddResult::STP_CANCELLED;
+AddResult OrderBook::addOrder(OrderType orderType, const Order& order) {
+  const Price order_price = order.getPrice();
+  const Side order_side = order.getSide();
+  const OrderId order_id = order.getId();
+  const MatchResult result = matchOrder(order);
+
+  if (result.stpTriggered) {
+    return AddResult::STP_CANCELLED;
+  }
+  else if (result.remaining == 0) {
+    return AddResult::FILLED;
+  }
+  switch (orderType) {
+    case (OrderType::GOOD_TILL_CANCEL): {
+      Order* slot = order_pool_.allocate(order);
+      slot->setQuantity(result.remaining);
+      orderMap_[order_id] = slot;
+      auto& map = (order_side == Side::BUY) ? bids_ : asks_;
+      auto [it, inserted] = map.try_emplace(order_price, nullptr);
+      if (inserted)
+        it->second = price_level_pool_.allocate();
+      it->second->addOrder(slot);
+      slot->level_ = it->second;
+      if (order_side == Side::BUY)
+        bestBid_ = bids_.rbegin()->second;
+      else
+        bestAsk_ = asks_.begin()->second;
+      return AddResult::ADDED;
     }
-    else if(result.remaining == 0){
-        return AddResult::FILLED;
+    case (OrderType::FILL_AND_KILL): {
+      return AddResult::KILLED;
     }
-    Order* slot = order_pool_.allocate(order);
-    slot->setQuantity(result.remaining);
-    orderMap_[order_id] = slot;
-    auto& map = (order_side == Side::BUY) ? bids_ : asks_;
-    auto [it, inserted] = map.try_emplace(order_price, nullptr);
-    if (inserted) it->second = price_level_pool_.allocate();
-    it->second->addOrder(slot);
-    slot->level_ = it->second;
-    return AddResult::ADDED;
+    case (OrderType::MARKET_ORDER): {
+      return AddResult::FILLED;
+    }
+    default:
+      return AddResult::FILLED;
+  }
+}
+// For Market Order Type
+AddResult OrderBook::addOrder(const OrderId orderId, const Side side, const Quantity quantity, const UserId userId) {
+  const Price price = static_cast<Price>(side == Side::BUY ? MarketPrice::BUY : MarketPrice::SELL);
+  Order order{orderId, side, price, quantity, userId};
+  return addOrder(OrderType::MARKET_ORDER, order);
 }
 
 // For client initiated cancels
-CancelResult OrderBook::cancelOrder(const OrderId orderId){
-    auto it = orderMap_.find(orderId);
-    if (it == orderMap_.end()) return CancelResult::NOT_FOUND;
-    Order* order = it->second;
+CancelResult OrderBook::cancelOrder(const OrderId orderId) {
+  auto it = orderMap_.find(orderId);
+  if (it == orderMap_.end())
+    return CancelResult::NOT_FOUND;
+  Order* order = it->second;
 
-    PriceLevel* level = order->level_;
-    level->removeOrder(order);
-    if(level->getTotalQuantity() == 0){
-        if(order->getSide() == Side::BUY)
-            bids_.erase(order->getPrice());
-        else
-            asks_.erase(order->getPrice());
+  PriceLevel* level = order->level_;
+
+  level->removeOrder(order);
+  if (level->getTotalQuantity() == 0) {
+    if (order->getSide() == Side::BUY) {
+      bids_.erase(order->getPrice());
+      bestBid_ = (bids_.empty() ? nullptr : bids_.rbegin()->second);
+    }
+    else {
+      asks_.erase(order->getPrice());
+      bestAsk_ = (asks_.empty() ? nullptr : asks_.begin()->second);
+    }
+    price_level_pool_.deallocate(level);
+  }
+
+  orderMap_.erase(orderId);
+  order_pool_.deallocate(order);
+  return CancelResult::CANCELLED;
+}
+
+MatchResult OrderBook::matchOrder(const Order& order) {
+  const Price price = order.getPrice();
+  const Side side = order.getSide();
+  Quantity remainingQuantity = order.getQuantity();
+  const UserId orderUserId = order.getUserId();
+  if (side == Side::BUY) {
+    auto it = asks_.begin();
+    while (it != asks_.end() && it->first <= price && remainingQuantity > 0) {
+      PriceLevel* level = it->second;
+      while (level->getTotalQuantity() > 0 && remainingQuantity > 0) {
+        const Order lowest_ask = it->second->front();
+        if (lowest_ask.getUserId() == orderUserId) {
+          return MatchResult{remainingQuantity, true};
+        }
+        const Quantity ask_quantity = lowest_ask.getQuantity();
+
+        if (ask_quantity <= remainingQuantity) {
+          fillOrder(*it->second);
+          remainingQuantity -= ask_quantity;
+        }
+        else {
+          it->second->reduceFrontQuantity(remainingQuantity);
+          remainingQuantity = 0;
+        }
+      }
+      if (level->getTotalQuantity() == 0) {
+        it = asks_.erase(it);
         price_level_pool_.deallocate(level);
+      }
+      else
+        ++it;
     }
 
-    orderMap_.erase(orderId);
-    order_pool_.deallocate(order);
-    return CancelResult::CANCELLED;
+    bestAsk_ = (asks_.empty() ? nullptr : asks_.begin()->second);
+  }
+  else {
+    auto it = bids_.rbegin();
+    while (it != bids_.rend() && it->first >= price && remainingQuantity > 0) {
+      PriceLevel* level = it->second;
+      while (level->getTotalQuantity() > 0 && remainingQuantity > 0) {
+        Order& highest_bid = it->second->front();
+        if (highest_bid.getUserId() == orderUserId) {
+          return MatchResult{remainingQuantity, true};
+        }
+        const Quantity bid_quantity = highest_bid.getQuantity();
+
+        if (bid_quantity <= remainingQuantity) {
+          fillOrder(*it->second);
+          remainingQuantity -= bid_quantity;
+        }
+        else {
+          it->second->reduceFrontQuantity(remainingQuantity);
+          remainingQuantity = 0;
+        }
+      }
+      if (level->getTotalQuantity() == 0) {
+        it = std::reverse_iterator(bids_.erase(std::next(it).base()));
+        price_level_pool_.deallocate(level);
+      }
+      else
+        ++it;
+    }
+    bestBid_ = (bids_.empty() ? nullptr : bids_.rbegin()->second);
+  }
+
+  return MatchResult{remainingQuantity, false};
 }
 
-MatchResult OrderBook::matchOrder(const Order& order){
-    const Price price = order.getPrice();
-    const Side side = order.getSide();
-    Quantity remainingQuantity = order.getQuantity();
-    const UserId orderUserId = order.getUserId();
-    if(side == Side::BUY){
-        auto it = asks_.begin();
-        while(it != asks_.end() && it->first <= price && remainingQuantity > 0){
-            PriceLevel* level = it->second;
-            while(level->getTotalQuantity() > 0 && remainingQuantity > 0){
-                const Order lowest_ask = it->second->front();
-                if (lowest_ask.getUserId() == orderUserId){
-                    return MatchResult{0, true};
-                }
-                const Quantity ask_quantity = lowest_ask.getQuantity();
+ModifyResult OrderBook::modifyOrder(const OrderId orderId, const Quantity newQuantity) {
+  if (newQuantity < 0) {
+    return ModifyResult::INVALID_QUANTITY;
+  }
+  else if (newQuantity == 0) {
+    const CancelResult result = cancelOrder(orderId);
+    return result == CancelResult::NOT_FOUND ? ModifyResult::ORDER_NOT_FOUND : ModifyResult::SUCCESS;
+  }
 
-                if(ask_quantity <= remainingQuantity){
-                    fillOrder(*it->second);
-                    remainingQuantity -= ask_quantity;
-                }
-                else{
-                    it->second->reduceFrontQuantity(remainingQuantity);
-                    remainingQuantity = 0;
-                }
-            }
-            if(level->getTotalQuantity() == 0) {
-                it = asks_.erase(it);
-                price_level_pool_.deallocate(level);
-            }
-            else
-                ++it;
-        }
-
-    }
-    else{
-        auto it = bids_.rbegin();
-        while(it != bids_.rend() && it->first >= price && remainingQuantity > 0){
-            PriceLevel* level = it->second;
-            while(level->getTotalQuantity() > 0 && remainingQuantity > 0){
-                Order& highest_bid = it->second->front();
-                if(highest_bid.getUserId() == orderUserId){
-                    return MatchResult{0, true};
-                }
-                const Quantity bid_quantity = highest_bid.getQuantity();
-
-                if(bid_quantity <= remainingQuantity){
-                    fillOrder(*it->second);
-                    remainingQuantity -= bid_quantity;
-                }
-                else{
-                    it->second->reduceFrontQuantity(remainingQuantity);
-                    remainingQuantity = 0;
-                }
-            }
-            if(level->getTotalQuantity() == 0) {
-                it = std::reverse_iterator(bids_.erase(std::next(it).base()));
-                price_level_pool_.deallocate(level);
-            }
-            else
-                ++it;
-        }
-    }
-
-    return MatchResult{remainingQuantity, false};
-}
-
-
-ModifyResult OrderBook::modifyOrder(const OrderId orderId, const Quantity newQuantity){
-    if(newQuantity < 0){
-        return ModifyResult::INVALID_QUANTITY;
-    }
-    else if(newQuantity == 0){
-        const CancelResult result = cancelOrder(orderId);
-        return result == CancelResult::NOT_FOUND ? ModifyResult::ORDER_NOT_FOUND : ModifyResult::SUCCESS;
-    }
-
-    auto it = orderMap_.find(orderId);
-    if(it == orderMap_.end()){
-        return ModifyResult::ORDER_NOT_FOUND;
-    }
-    else{
-        const Quantity currentQuantity = it->second->getQuantity();
-        it->second->setQuantity(newQuantity);
-        it->second->level_->modifyOrderQuantity(newQuantity - currentQuantity);
-        return ModifyResult::SUCCESS;
-
-    }
-
-
+  auto it = orderMap_.find(orderId);
+  if (it == orderMap_.end()) {
+    return ModifyResult::ORDER_NOT_FOUND;
+  }
+  else {
+    const Quantity currentQuantity = it->second->getQuantity();
+    it->second->setQuantity(newQuantity);
+    it->second->level_->modifyOrderQuantity(newQuantity - currentQuantity);
+    return ModifyResult::SUCCESS;
+  }
 }
