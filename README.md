@@ -63,6 +63,8 @@ KDE latency distribution across three implementations replayed against the same 
 ### Memory Management
 - Custom `OrderPool` and `PriceLevelPool` using free-list recycling
 - Recycled slots reused via in-place assignment — no heap allocation on the hot path
+- Both pools expose a capacity constructor that pre-allocates all slots upfront, eliminating `new` entirely from the measured path
+- `OrderBook` accepts separate `order_capacity` and `level_capacity` parameters — orders and price levels are different scales (a book with 10k live orders may have only ~500 active levels), so over-allocating a single shared pool would waste memory
 - Designed for steady-state zero-allocation behavior
 
 ---
@@ -105,12 +107,11 @@ Both `std::map` and `std::vector`-based price ladders were benchmarked against t
 
 ## Benchmarking
 
-- Custom `rdtsc`/`rdtscp` + `lfence` cycle-accurate harness
-- 100,000 iterations per measurement
-- Pools pre-allocated upfront — zero `new` calls on the hot path
-- Steady-state depth maintained via fixed price range cycling
-- Sweep books pre-built outside measurement loop
-- 100ms calibration window for cycle → ns conversion
+- Custom `rdtsc`/`rdtscp` + `lfence` cycle-accurate harness — `lfence` before `rdtsc` serializes prior instructions, `rdtscp` + `lfence` after prevents the CPU reordering the timestamp read before the measured work completes
+- 100,000 iterations per measurement, 100ms calibration window for cycle → ns conversion
+- Pools and `orderMap_` pre-allocated to capacity before measurement — eliminates `new` and `unordered_map` rehash from the hot path
+- Steady-state depth: cancelOrder and addOrder (no match) cycle through a fixed price range so book depth stays constant across all samples
+- Sweep books pre-built outside the measurement loop — isolates matching cost from pool construction and order insertion
 
 ---
 
