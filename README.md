@@ -13,13 +13,14 @@ High-performance C++20 limit order book designed for ultra-low latency trading s
 
 | Operation | p50 | p99 | p99.9 |
 |----------|-----|-----|-------|
-| addOrder (no match) | 50.1 ns | 1.4 µs | 4.0 µs |
-| addOrder (full match) | 40.1 ns | 120.2 ns | 320.6 ns |
-| cancelOrder | 60.1 ns | 410.8 ns | 871.7 ns |
-| sweep (8 levels) | 250.5 ns | 450.9 ns | 691.3 ns |
-| sweep (64 levels) | 2.0 µs | 2.1 µs | 5.4 µs |
-| sweep (256 levels) | 8.7 µs | 12.2 µs | 14.9 µs |
-| sweep (1024 levels) | 32.3 µs | 36.6 µs | 50.1 µs |
+| addOrder (no match, steady state) | 40.1 ns | 70.1 ns | 1.7 µs |
+| addOrder (no match, new level) | 110.2 ns | 1.6 µs | 3.1 µs |
+| addOrder (full match) | 40.1 ns | 170.3 ns | 310.6 ns |
+| cancelOrder | 30.1 ns | 270.5 ns | 350.7 ns |
+| sweep (8 levels) | 380.7 ns | 1.1 µs | 1.7 µs |
+| sweep (64 levels) | 3.8 µs | 6.1 µs | 10.4 µs |
+| sweep (256 levels) | 12.8 µs | 20.3 µs | 25.5 µs |
+| sweep (1024 levels) | 46.3 µs | 59.8 µs | 68.5 µs |
 
 ![Latency Comparison](docs/latency_combined.png)
 
@@ -104,9 +105,11 @@ Both `std::map` and `std::vector`-based price ladders were benchmarked against t
 
 ## Benchmarking
 
-- Custom `rdtsc` cycle-accurate harness
+- Custom `rdtsc`/`rdtscp` + `lfence` cycle-accurate harness
 - 100,000 iterations per measurement
-- Warm vs cold cache isolation
+- Pools pre-allocated upfront — zero `new` calls on the hot path
+- Steady-state depth maintained via fixed price range cycling
+- Sweep books pre-built outside measurement loop
 - 100ms calibration window for cycle → ns conversion
 
 ---
