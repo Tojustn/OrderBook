@@ -4,6 +4,7 @@
 class OrderPool {
 public:
     OrderPool() = default;
+    explicit OrderPool(size_t capacity);
     Order* allocate(const Order& order);
     void deallocate(Order* order);
     ~OrderPool();

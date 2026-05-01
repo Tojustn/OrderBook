@@ -4,6 +4,7 @@
 class PriceLevelPool{
     public:
         PriceLevelPool() = default;
+        explicit PriceLevelPool(size_t capacity);
         PriceLevel* allocate();
         void deallocate(PriceLevel*);
         ~PriceLevelPool();

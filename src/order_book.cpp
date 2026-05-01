@@ -4,6 +4,9 @@
 #include "types.hpp"
 #include <type_traits>
 // Not a pointer as a param since caller doesnt manage memory
+OrderBook::OrderBook(size_t order_capacity, size_t level_capacity)
+    : order_pool_(order_capacity), price_level_pool_(level_capacity) {}
+
 void OrderBook::fillOrder(PriceLevel& level) {
   Order* filled = level.popFront();
   orderMap_.erase(filled->getId());

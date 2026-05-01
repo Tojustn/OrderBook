@@ -10,6 +10,7 @@
 class OrderBook {
 public:
   OrderBook() = default;
+  explicit OrderBook(size_t order_capacity, size_t level_capacity);
   ~OrderBook();
   AddResult addOrder(OrderType, const Order& order);
   // overload Market Order Type

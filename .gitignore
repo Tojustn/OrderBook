@@ -5,7 +5,8 @@ build_linux/
 cmake-build-*/
 out/
 
-# CMake generated files
+# CMake/CTest generated files
+Testing/
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake

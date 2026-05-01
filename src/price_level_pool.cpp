@@ -1,6 +1,14 @@
 #include "price_level_pool.hpp"
 
 // Add pricelevel to the pool
+PriceLevelPool::PriceLevelPool(size_t capacity) {
+    for (size_t i = 0; i < capacity; i++) {
+        PriceLevel* l = new PriceLevel();
+        l->next_ = head_;
+        head_ = l;
+    }
+}
+
 PriceLevel* PriceLevelPool::allocate(){
     if(head_){
         PriceLevel* slot = head_;

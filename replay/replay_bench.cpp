@@ -10,24 +10,27 @@
 #include "order.hpp"
 #include "types.hpp"
 
-#ifdef _MSC_VER
-#  include <intrin.h>
-static inline uint64_t rdtsc() { return __rdtsc(); }
-#else
-static inline uint64_t rdtsc() {
+static inline uint64_t rdtsc_start() {
+    __builtin_ia32_lfence();
     unsigned int lo, hi;
-    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi) :: "memory");
     return (static_cast<uint64_t>(hi) << 32) | lo;
 }
-#endif
+
+static inline uint64_t rdtsc_end() {
+    unsigned int lo, hi, aux;
+    __asm__ __volatile__("rdtscp" : "=a"(lo), "=d"(hi), "=c"(aux) :: "memory");
+    __builtin_ia32_lfence();
+    return (static_cast<uint64_t>(hi) << 32) | lo;
+}
 
 // Calibrate by measuring cycles over a 100ms wall-clock window
 static double ns_per_cycle() {
     using clk = std::chrono::steady_clock;
     const auto     wall0 = clk::now();
-    const uint64_t cyc0  = rdtsc();
+    const uint64_t cyc0  = rdtsc_start();
     while (std::chrono::duration<double>(clk::now() - wall0).count() < 0.1) {}
-    const uint64_t cyc1  = rdtsc();
+    const uint64_t cyc1  = rdtsc_end();
     const auto     wall1 = clk::now();
     const double   ns    = std::chrono::duration<double, std::nano>(wall1 - wall0).count();
     return ns / static_cast<double>(cyc1 - cyc0);
@@ -99,21 +102,21 @@ int main(){
         double time_diff{0};
         if (op == 'A') {
             if (levelSet.find(key) == levelSet.end()) {
-                t0 = rdtsc();
+                t0 = rdtsc_start();
                 orderBook.addOrder(OrderType::GOOD_TILL_CANCEL, Order{key, side, price, size, userId});
-                t1 = rdtsc();
+                t1 = rdtsc_end();
                 levelSet.insert(key);
             } else {
                 op = 'M';
-                t0 = rdtsc();
+                t0 = rdtsc_start();
                 orderBook.modifyOrder(key, size);
-                t1 = rdtsc();
+                t1 = rdtsc_end();
             }
         } else {
 
-            t0 = rdtsc();
+            t0 = rdtsc_start();
             auto result = orderBook.cancelOrder(key);
-            t1 = rdtsc();
+            t1 = rdtsc_end();
             if (result == CancelResult::CANCELLED) {
                 levelSet.erase(key);
             }
