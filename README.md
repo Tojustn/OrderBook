@@ -88,7 +88,7 @@ Both `std::map` and `std::vector`-based price ladders were benchmarked against t
 | `FILL_AND_KILL` | Fills what it can immediately, remainder discarded |
 | `MARKET_ORDER` | No price specified — fills at best available price, remainder discarded |
 | `FILL_OR_KILL` | Must be filled entirely and immediately, otherwise the whole order is cancelled | 
-| `POST_ONLY' | Only accepted if it adds liquidity; if it would cross the spread and fill, it is rejected | 
+| `POST_ONLY` | Only accepted if it adds liquidity; if it would cross the spread and fill, it is rejected | 
 
 ---
 
