@@ -23,6 +23,8 @@ public:
 
 private:
   MatchResult matchOrder(const Order& order);
+  bool canFill(const Order& order) const noexcept;
+  bool couldMatch(const Order& order) const noexcept;
   void fillOrder(PriceLevel& level);
   std::map<Price, PriceLevel*> bids_;
   std::map<Price, PriceLevel*> asks_;

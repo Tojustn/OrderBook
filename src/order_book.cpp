@@ -2,6 +2,7 @@
 #include "price_level.hpp"
 #include "price_level_pool.hpp"
 #include "types.hpp"
+#include <type_traits>
 // Not a pointer as a param since caller doesnt manage memory
 void OrderBook::fillOrder(PriceLevel& level) {
   Order* filled = level.popFront();
@@ -25,16 +26,14 @@ AddResult OrderBook::addOrder(OrderType orderType, const Order& order) {
   const Price order_price = order.getPrice();
   const Side order_side = order.getSide();
   const OrderId order_id = order.getId();
-  const MatchResult result = matchOrder(order);
 
-  if (result.stpTriggered) {
-    return AddResult::STP_CANCELLED;
-  }
-  else if (result.remaining == 0) {
-    return AddResult::FILLED;
-  }
   switch (orderType) {
     case (OrderType::GOOD_TILL_CANCEL): {
+      const MatchResult result = matchOrder(order);
+      if (result.stpTriggered)
+        return AddResult::STP_CANCELLED;
+      if (result.remaining == 0)
+        return AddResult::FILLED;
       Order* slot = order_pool_.allocate(order);
       slot->setQuantity(result.remaining);
       orderMap_[order_id] = slot;
@@ -44,21 +43,44 @@ AddResult OrderBook::addOrder(OrderType orderType, const Order& order) {
         it->second = price_level_pool_.allocate();
       it->second->addOrder(slot);
       slot->level_ = it->second;
-      if (order_side == Side::BUY)
-        bestBid_ = bids_.rbegin()->second;
-      else
-        bestAsk_ = asks_.begin()->second;
-      return AddResult::ADDED;
+      break;
     }
     case (OrderType::FILL_AND_KILL): {
-      return AddResult::KILLED;
+      const MatchResult result = matchOrder(order);
+      if (result.stpTriggered)
+        return AddResult::STP_CANCELLED;
+      return result.remaining == 0 ? AddResult::FILLED : AddResult::KILLED;
     }
     case (OrderType::MARKET_ORDER): {
+      matchOrder(order);
       return AddResult::FILLED;
+    }
+    case (OrderType::FILL_OR_KILL): {
+      if (!canFill(order))
+        return AddResult::KILLED;
+      matchOrder(order);
+      return AddResult::FILLED;
+    }
+    case (OrderType::POST_ONLY): {
+      if (couldMatch(order))
+        return AddResult::KILLED;
+      Order* slot = order_pool_.allocate(order);
+      orderMap_[order_id] = slot;
+      auto& map = (order_side == Side::BUY) ? bids_ : asks_;
+      auto [it, inserted] = map.try_emplace(order_price, nullptr);
+      if (inserted)
+        it->second = price_level_pool_.allocate();
+      it->second->addOrder(slot);
+      slot->level_ = it->second;
+      break;
     }
     default:
       return AddResult::FILLED;
   }
+
+  bestBid_ = bids_.empty() ? nullptr : bids_.rbegin()->second;
+  bestAsk_ = asks_.empty() ? nullptr : asks_.begin()->second;
+  return AddResult::ADDED;
 }
 // For Market Order Type
 AddResult OrderBook::addOrder(const OrderId orderId, const Side side, const Quantity quantity, const UserId userId) {
@@ -180,5 +202,42 @@ ModifyResult OrderBook::modifyOrder(const OrderId orderId, const Quantity newQua
     it->second->setQuantity(newQuantity);
     it->second->level_->modifyOrderQuantity(newQuantity - currentQuantity);
     return ModifyResult::SUCCESS;
+  }
+}
+
+bool OrderBook::canFill(const Order& order) const noexcept {
+  const Price price = order.getPrice();
+  const Side side = order.getSide();
+  const UserId userId = order.getUserId();
+  Quantity needed = order.getQuantity();
+
+  if (side == Side::BUY) {
+    for (auto it = asks_.begin(); it != asks_.end() && it->first <= price && needed > 0; ++it) {
+      for (const Order* o = it->second->getOrders(); o != nullptr && needed > 0; o = o->next_) {
+        if (o->getUserId() == userId)
+          return false;
+        needed -= o->getQuantity();
+      }
+    }
+  }
+  else {
+    for (auto it = bids_.rbegin(); it != bids_.rend() && it->first >= price && needed > 0; ++it) {
+      for (const Order* o = it->second->getOrders(); o != nullptr && needed > 0; o = o->next_) {
+        if (o->getUserId() == userId)
+          return false;
+        needed -= o->getQuantity();
+      }
+    }
+  }
+
+  return needed <= 0;
+}
+
+bool OrderBook::couldMatch(const Order& order) const noexcept {
+  if (order.getSide() == Side::BUY) {
+    return !asks_.empty() && order.getPrice() >= asks_.begin()->first;
+  }
+  else {
+    return !bids_.empty() && order.getPrice() <= bids_.rbegin()->first;
   }
 }

@@ -38,7 +38,6 @@ enum class ModifyResult : uint8_t {
   INVALID_QUANTITY
 };
 
-// Currently I'm only supporting 3 types
 enum class OrderType : uint8_t {
   // Kill order after matching
   FILL_AND_KILL,
@@ -46,6 +45,10 @@ enum class OrderType : uint8_t {
   GOOD_TILL_CANCEL,
   // No price, only quantity aka match until gone
   MARKET_ORDER,
+  // If Order can't be fully filled kill int64_t
+  FILL_OR_KILL,
+  // Doesn't match only creates a Order
+  POST_ONLY
 };
 
 enum class MarketPrice : Price {
