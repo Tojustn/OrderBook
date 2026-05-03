@@ -313,3 +313,37 @@ TEST_CASE("POST_ONLY - rests when price does not cross", "[orderbook][ordertype]
   CHECK(!book.getBids().empty());
   CHECK(!book.getAsks().empty());
 }
+
+// ── rule of five ──────────────────────────────────────────────────────────────
+
+TEST_CASE("move constructor - transfers orders to new book", "[orderbook][move]") {
+  OrderBook src;
+  src.addOrder(OrderType::GOOD_TILL_CANCEL, Order(1, Side::BUY, 100, 50, 1));
+  src.addOrder(OrderType::GOOD_TILL_CANCEL, Order(2, Side::SELL, 200, 30, 2));
+
+  OrderBook dst(std::move(src));
+
+  REQUIRE(hasLevel(dst.getBids(), 100));
+  CHECK(atLevel(dst.getBids(), 100).getTotalQuantity() == 50);
+  REQUIRE(hasLevel(dst.getAsks(), 200));
+  CHECK(atLevel(dst.getAsks(), 200).getTotalQuantity() == 30);
+  CHECK(src.getBids().empty());
+  CHECK(src.getAsks().empty());
+  CHECK(src.getBestBid() == nullptr);
+  CHECK(src.getBestAsk() == nullptr);
+}
+
+TEST_CASE("move assignment - transfers orders, existing orders in dst are cleaned up", "[orderbook][move]") {
+  OrderBook src;
+  src.addOrder(OrderType::GOOD_TILL_CANCEL, Order(1, Side::BUY, 100, 50, 1));
+
+  OrderBook dst;
+  dst.addOrder(OrderType::GOOD_TILL_CANCEL, Order(2, Side::SELL, 200, 30, 2));
+  dst = std::move(src);
+
+  REQUIRE(hasLevel(dst.getBids(), 100));
+  CHECK(atLevel(dst.getBids(), 100).getTotalQuantity() == 50);
+  CHECK(dst.getAsks().empty());
+  CHECK(src.getBids().empty());
+  CHECK(src.getBestBid() == nullptr);
+}

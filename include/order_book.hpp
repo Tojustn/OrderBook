@@ -11,7 +11,6 @@ class OrderBook {
 public:
   OrderBook() = default;
   explicit OrderBook(size_t order_capacity, size_t level_capacity);
-  ~OrderBook();
   AddResult addOrder(OrderType, const Order& order);
   // overload Market Order Type
   AddResult addOrder(const OrderId, const Side, const Quantity, const UserId);
@@ -21,6 +20,13 @@ public:
   PriceLevel* getBestAsk() const noexcept { return bestAsk_; }
   const std::map<Price, PriceLevel*>& getBids() const noexcept { return bids_; }
   const std::map<Price, PriceLevel*>& getAsks() const noexcept { return asks_; }
+
+  // Rule of Five
+  ~OrderBook();
+  OrderBook(const OrderBook&) = delete;
+  OrderBook& operator=(const OrderBook&) = delete;
+  OrderBook(OrderBook&&) noexcept;
+  OrderBook& operator=(OrderBook&&) noexcept;
 
 private:
   MatchResult matchOrder(const Order& order);

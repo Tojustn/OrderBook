@@ -32,3 +32,20 @@ PriceLevelPool::~PriceLevelPool(){
         head_ = next;
     }
 }
+
+PriceLevelPool::PriceLevelPool(PriceLevelPool&& other) noexcept {
+    head_ = other.head_;
+    other.head_ = nullptr;
+}
+
+PriceLevelPool& PriceLevelPool::operator=(PriceLevelPool&& other) noexcept {
+    if (this == &other) return *this;
+    while (head_) {
+        PriceLevel* next = head_->next_;
+        delete head_;
+        head_ = next;
+    }
+    head_ = other.head_;
+    other.head_ = nullptr;
+    return *this;
+}

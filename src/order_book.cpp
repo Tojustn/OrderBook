@@ -2,7 +2,6 @@
 #include "price_level.hpp"
 #include "price_level_pool.hpp"
 #include "types.hpp"
-#include <type_traits>
 // Not a pointer as a param since caller doesnt manage memory
 OrderBook::OrderBook(size_t order_capacity, size_t level_capacity)
     : order_pool_(order_capacity), price_level_pool_(level_capacity) {}
@@ -23,6 +22,38 @@ OrderBook::~OrderBook() {
   for (auto& [price, level] : asks_) {
     price_level_pool_.deallocate(level);
   }
+}
+
+OrderBook::OrderBook(OrderBook&& other) noexcept
+    : bids_(std::move(other.bids_)), asks_(std::move(other.asks_)), orderMap_(std::move(other.orderMap_)),
+      bestBid_(other.bestBid_), bestAsk_(other.bestAsk_), order_pool_(std::move(other.order_pool_)),
+      price_level_pool_(std::move(other.price_level_pool_)) {
+  other.bestBid_ = nullptr;
+  other.bestAsk_ = nullptr;
+}
+
+OrderBook& OrderBook::operator=(OrderBook&& other) noexcept {
+  if (this == &other)
+    return *this;
+  for (auto& [id, order] : orderMap_) {
+    order_pool_.deallocate(order);
+  }
+  for (auto& [price, level] : bids_) {
+    price_level_pool_.deallocate(level);
+  }
+  for (auto& [price, level] : asks_) {
+    price_level_pool_.deallocate(level);
+  }
+  bids_ = std::move(other.bids_);
+  asks_ = std::move(other.asks_);
+  orderMap_ = std::move(other.orderMap_);
+  bestBid_ = other.bestBid_;
+  bestAsk_ = other.bestAsk_;
+  order_pool_ = std::move(other.order_pool_);
+  price_level_pool_ = std::move(other.price_level_pool_);
+  other.bestBid_ = nullptr;
+  other.bestAsk_ = nullptr;
+  return *this;
 }
 
 AddResult OrderBook::addOrder(OrderType orderType, const Order& order) {

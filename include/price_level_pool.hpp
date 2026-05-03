@@ -8,6 +8,10 @@ class PriceLevelPool{
         PriceLevel* allocate();
         void deallocate(PriceLevel*);
         ~PriceLevelPool();
+        PriceLevelPool(const PriceLevelPool&) = delete;
+        PriceLevelPool& operator=(const PriceLevelPool&) = delete;
+        PriceLevelPool(PriceLevelPool&&) noexcept;
+        PriceLevelPool& operator=(PriceLevelPool&&) noexcept;
     private:
         PriceLevel* head_ = nullptr;
 };
