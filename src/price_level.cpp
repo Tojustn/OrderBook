@@ -1,8 +1,9 @@
 #include "price_level.hpp"
 #include "types.hpp"
 
-void PriceLevel::addOrder(Order* order) {
+void PriceLevel::addOrder(Order* order) noexcept {
     totalQuantity_ += order->getQuantity();
+    ++orderCount_;
 
     if (!tail_) {
         head_ = tail_ = order;
@@ -17,7 +18,7 @@ void PriceLevel::addOrder(Order* order) {
     order->next_ = nullptr; 
 }
 
-void PriceLevel::removeOrder(Order* order) {
+void PriceLevel::removeOrder(Order* order) noexcept {
     if (!order) return;
 
     if (order->prev_) {
@@ -33,6 +34,7 @@ void PriceLevel::removeOrder(Order* order) {
     }
 
     totalQuantity_ -= order->getQuantity();
+    --orderCount_;
     order->next_ = nullptr;
     order->prev_ = nullptr;
 }
@@ -41,15 +43,15 @@ void PriceLevel::reduceFrontQuantity(Quantity qty) noexcept {
     totalQuantity_ -= qty;
 }
 
-Order& PriceLevel::front(){
+Order& PriceLevel::front() noexcept {
     return *head_;
 }
 
-const Order& PriceLevel::front() const{
+const Order& PriceLevel::front() const noexcept {
     return *head_;
 }
 
-Order* PriceLevel::popFront(){
+Order* PriceLevel::popFront() noexcept {
     Order* order = head_;
     removeOrder(head_);
     return order;

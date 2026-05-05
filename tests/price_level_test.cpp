@@ -3,19 +3,13 @@
 #include "order.hpp"
 #include "types.hpp"
 
-static int countOrders(const Order* head) {
-    int n = 0;
-    for (const Order* o = head; o; o = o->next_) ++n;
-    return n;
-}
-
 TEST_CASE("PriceLevel - addOrder inserts order", "[pricelevel][add]") {
     PriceLevel level(100);
     Order order(1, Side::BUY, 100, 50, 1);
     level.addOrder(&order);
 
     const Order* head = level.getOrders();
-    REQUIRE(countOrders(head) == 1);
+    REQUIRE(level.orderCount() == 1);
     CHECK(head->getId() == 1);
     CHECK(head->getSide() == Side::BUY);
     CHECK(head->getPrice() == 100);
@@ -29,7 +23,7 @@ TEST_CASE("PriceLevel - addOrder multiple orders aggregates quantity", "[pricele
     level.addOrder(&o1);
     level.addOrder(&o2);
 
-    CHECK(countOrders(level.getOrders()) == 2);
+    CHECK(level.orderCount() == 2);
     CHECK(level.getTotalQuantity() == 80);
 }
 
@@ -39,7 +33,7 @@ TEST_CASE("PriceLevel - removeOrder removes order", "[pricelevel][remove]") {
     level.addOrder(&order);
     level.removeOrder(&order);
 
-    CHECK(level.getOrders() == nullptr);
+    CHECK(level.orderCount() == 0);
 }
 
 TEST_CASE("PriceLevel - removeOrder decreases total quantity", "[pricelevel][remove]") {
@@ -51,5 +45,5 @@ TEST_CASE("PriceLevel - removeOrder decreases total quantity", "[pricelevel][rem
     level.removeOrder(&o1);
 
     CHECK(level.getTotalQuantity() == 30);
-    CHECK(countOrders(level.getOrders()) == 1);
+    CHECK(level.orderCount() == 1);
 }

@@ -6,7 +6,7 @@ public:
   OrderPool() = default;
   explicit OrderPool(size_t capacity);
   Order* allocate(const Order& order);
-  void deallocate(Order* order);
+  void deallocate(Order* order) noexcept;
 
   ~OrderPool();
   OrderPool(const OrderPool&) = delete;

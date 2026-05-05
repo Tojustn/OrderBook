@@ -27,7 +27,7 @@ Order* OrderPool::allocate(const Order& order) {
 }
 
 // Add a order to the pool
-void OrderPool::deallocate(Order* order) {
+void OrderPool::deallocate(Order* order) noexcept {
   order->next_ = head_;
   head_ = order;
 }

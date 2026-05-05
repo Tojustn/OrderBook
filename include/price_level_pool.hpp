@@ -6,7 +6,7 @@ class PriceLevelPool{
         PriceLevelPool() = default;
         explicit PriceLevelPool(size_t capacity);
         PriceLevel* allocate();
-        void deallocate(PriceLevel*);
+        void deallocate(PriceLevel*) noexcept;
         ~PriceLevelPool();
         PriceLevelPool(const PriceLevelPool&) = delete;
         PriceLevelPool& operator=(const PriceLevelPool&) = delete;

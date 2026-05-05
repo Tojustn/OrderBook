@@ -20,7 +20,7 @@ PriceLevel* PriceLevelPool::allocate(){
 };
 
 // Add pricelevel to the pool
-void PriceLevelPool::deallocate(PriceLevel* level){
+void PriceLevelPool::deallocate(PriceLevel* level) noexcept {
     level->next_ = head_; 
     head_ = level;
 };
