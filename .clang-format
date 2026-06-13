@@ -1,0 +1,12 @@
+BasedOnStyle: LLVM
+PointerAlignment: Left
+BreakBeforeBraces: Custom
+BraceWrapping:
+  BeforeElse: true
+  AfterFunction: false
+IndentCaseLabels: true
+ColumnLimit: 120
+BreakInheritanceList: BeforeComma
+AllowShortEnumsOnASingleLine: false
+AlwaysBreakTemplateDeclarations: Yes
+AllowShortFunctionsOnASingleLine: None

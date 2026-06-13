@@ -50,7 +50,6 @@ coverage/
 *.log
 .cache/
 compile_commands.json
-.clang-format
 
 # Data
 data/
