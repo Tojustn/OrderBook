@@ -10,7 +10,9 @@ class SPSC_QUEUE {
 public:
   static_assert(std::atomic<size_t>::is_always_lock_free);
   SPSC_QUEUE(size_t capacity);
+  // both l and r value
   bool push(const T&);
+
   // Take in a param, to edit since pop always follows the ring
   bool pop(T&);
 
@@ -20,11 +22,13 @@ private:
   std::atomic<size_t> push_cursor_;
   std::atomic<size_t> pop_cursor_;
   size_t capacity_;
+  ~SPSC_QUEUE();
 };
 
 template <typename T>
 SPSC_QUEUE<T>::SPSC_QUEUE(size_t capacity) : capacity_(capacity) {
   // Just allocate space since objects are placement newed from the methods
+  // Note static_cast<T*> because malloc returns void*
   ring_ = static_cast<T*>(malloc(sizeof(T) * capacity_));
   if (!ring_)
     throw std::bad_alloc();
@@ -42,7 +46,7 @@ bool SPSC_QUEUE<T>::push(const T& val) {
   if (push_cursor_index == pop_cursor_index + capacity_)
     return false;
 
-  // Placement new
+  // Placement new -- NOTE that the push cursor index lower
   new (&ring_[push_cursor_index % capacity_]) T(val);
 
   push_cursor_.store(push_cursor_index + 1);
@@ -62,3 +66,14 @@ bool SPSC_QUEUE<T>::pop(T& val) {
   pop_cursor_.store(pop_cursor_index + 1);
   return true;
 };
+
+// Rule of twooo
+template <typename T>
+SPSC_QUEUE<T>::~SPSC_QUEUE() {
+  // Elements to be destroyed live between the pop and push and push is aheadd
+  for (T i = pop_cursor_.load(); i != push_cursor_.load();) {
+    // call each objects destructor
+    (ring_[i % push_cursor_]).~T();
+  }
+  free(ring_);
+}
