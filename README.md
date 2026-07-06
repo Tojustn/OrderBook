@@ -2,14 +2,18 @@
 
 High-performance C++20 limit order book designed for ultra-low latency trading systems.
 
-- Sub-100ns order processing (p50)
+- Sub-100ns adds and cancels at steady state (40ns / 30ns p50)
 - O(1) order cancellation via direct pointer indexing
 - MBO (Market-by-Order) matching engine with FIFO execution
-- Custom rdtsc-based benchmarking harness replayed against 12M+ real BTC L2 events
+- Custom rdtsc-based benchmarking harness replayed against 12M+ real BTC-USD L2 events ([EXCHANGE], CSV replay)
 
 ---
 
 ## Performance (Linux Native / Ubuntu, GCC Release)
+
+<!-- TODO: add hardware line when at machine, e.g.:
+Benchmarked on [CPU model] @ [X.X GHz], GCC [version], -O3 [-march=native], performance governor.
+-->
 
 | Operation | p50 | p99 | p99.9 |
 |----------|-----|-----|-------|
@@ -90,8 +94,8 @@ Both `std::map` and `std::vector`-based price ladders were benchmarked against t
 | `GOOD_TILL_CANCEL` | Rests in book until explicitly cancelled or fully filled |
 | `FILL_AND_KILL` | Fills what it can immediately, remainder discarded |
 | `MARKET_ORDER` | No price specified — fills at best available price, remainder discarded |
-| `FILL_OR_KILL` | Must be filled entirely and immediately, otherwise the whole order is cancelled | 
-| `POST_ONLY` | Only accepted if it adds liquidity; if it would cross the spread and fill, it is rejected | 
+| `FILL_OR_KILL` | Must be filled entirely and immediately, otherwise the whole order is cancelled |
+| `POST_ONLY` | Only accepted if it adds liquidity; if it would cross the spread and fill, it is rejected |
 
 ---
 
@@ -112,12 +116,3 @@ Both `std::map` and `std::vector`-based price ladders were benchmarked against t
 - Pools and `orderMap_` pre-allocated to capacity before measurement — eliminates `new` and `unordered_map` rehash from the hot path
 - Steady-state depth: cancelOrder and addOrder (no match) cycle through a fixed price range so book depth stays constant across all samples
 - Sweep books pre-built outside the measurement loop — isolates matching cost from pool construction and order insertion
-
----
-
-## Key Engineering Focus
-
-- Cache efficiency over algorithmic complexity
-- Pointer-based data structures over STL abstractions
-- Allocation elimination via pooling
-- Deterministic latency measurement
