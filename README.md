@@ -30,7 +30,7 @@ KDE latency distribution across three implementations replayed against the same 
 
 ## Core Design
 
-### Matching Engine (MBP + FIFO)
+### Matching Engine (MBO)
 - Orders matched across all price levels (not just top-of-book)
 - FIFO queue per price level ensures fair execution ordering
 - Partial fills supported with remainder resting in-book
