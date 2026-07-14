@@ -16,13 +16,14 @@ public:
   // Take in a param, to edit since pop always follows the ring
   bool pop(T&);
 
+  ~SPSC_QUEUE();
+
 private:
   T* ring_;
   // Atomics for multi thread safety, indexs
   std::atomic<size_t> push_cursor_;
   std::atomic<size_t> pop_cursor_;
   size_t capacity_;
-  ~SPSC_QUEUE();
 };
 
 template <typename T>

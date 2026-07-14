@@ -2,6 +2,7 @@
 build/
 build-linux/
 build_linux/
+build_debug/
 cmake-build-*/
 out/
 
