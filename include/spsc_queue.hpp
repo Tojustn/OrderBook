@@ -71,10 +71,12 @@ bool SPSC_QUEUE<T>::pop(T& val) {
 // Rule of twooo
 template <typename T>
 SPSC_QUEUE<T>::~SPSC_QUEUE() {
-  // Elements to be destroyed live between the pop and push and push is aheadd
-  for (T i = pop_cursor_.load(); i != push_cursor_.load();) {
-    // call each objects destructor
-    (ring_[i % push_cursor_]).~T();
+  const size_t pop = pop_cursor_.load();
+  const size_t push = push_cursor_.load();
+
+  for (size_t i = pop; i != push; ++i) {
+    ring_[i % capacity_].~T();
   }
+
   free(ring_);
 }
