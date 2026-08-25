@@ -5,7 +5,7 @@ High-performance C++20 limit order book designed for ultra-low latency trading s
 - Sub-100ns adds and cancels at steady state (40ns / 30ns p50)
 - O(1) order cancellation via direct pointer indexing
 - MBO (Market-by-Order) matching engine with FIFO execution
-- Custom rdtsc-based benchmarking harness replayed against 12M+ real BTC-USD L2 events ([EXCHANGE], CSV replay)
+- Custom rdtsc-based benchmarking harness replayed against 12M+ real BTCUSDT L2 events from the [Bybit public order book archive](https://public.bybit.com/orderbook/), dated April 22, 2026 (CSV replay)
 
 ---
 
@@ -35,6 +35,7 @@ KDE latency distribution across three implementations replayed against the same 
 ## Core Design
 
 ### Matching Engine (MBO)
+
 - Orders matched across all price levels (not just top-of-book)
 - FIFO queue per price level ensures fair execution ordering
 - Partial fills supported with remainder resting in-book
@@ -42,6 +43,7 @@ KDE latency distribution across three implementations replayed against the same 
 ---
 
 ### Price Levels
+
 - Intrusive doubly-linked list stored directly in `Order`
 - Eliminates STL node allocation overhead
 - O(1) insertion/removal within a price level
@@ -49,6 +51,7 @@ KDE latency distribution across three implementations replayed against the same 
 ---
 
 ### Order Lookup (O(1) cancel)
+
 - `unordered_map<OrderId, Order*>` → direct pointer access
 - No traversal required for cancellation or modification
 - Enables deterministic cancellation latency
@@ -56,6 +59,7 @@ KDE latency distribution across three implementations replayed against the same 
 ---
 
 ### Modify / Cancel Semantics
+
 - **Cancel:** O(1) removal via hash lookup + pointer unlink
 - **Modify:** updates order quantity in-place while preserving:
   - original FIFO position
@@ -65,21 +69,47 @@ KDE latency distribution across three implementations replayed against the same 
 ---
 
 ### Memory Management
+
 - Custom `OrderPool` and `PriceLevelPool` using free-list recycling
-- Recycled slots reused via in-place assignment — no heap allocation on the hot path
+- Recycled slots reused via in-place assignment, with no heap allocation on the hot path
 - Both pools expose a capacity constructor that pre-allocates all slots upfront, eliminating `new` entirely from the measured path
-- `OrderBook` accepts separate `order_capacity` and `level_capacity` parameters — orders and price levels are different scales (a book with 10k live orders may have only ~500 active levels), so over-allocating a single shared pool would waste memory
+- `OrderBook` accepts separate `order_capacity` and `level_capacity` parameters because orders and price levels are different scales (a book with 10k live orders may have only ~500 active levels), so over-allocating a single shared pool would waste memory
 - Designed for steady-state zero-allocation behavior
 
 ---
 
 ### Design Tradeoff: `std::map` vs `std::vector`
 
-Both `std::map` and `std::vector`-based price ladders were benchmarked against the same 12M+ real BTC L2 event stream.
+Both `std::map` and `std::vector`-based price ladders were benchmarked against
+the same 12M+ real BTC L2 event stream. Reconstructing the observed depth-200
+book produced the following event distribution:
 
-`std::vector` was evaluated in two configurations: sorted ascending (best price at back) and sorted descending (best price at front). Both vector variants showed comparable or worse p50 latency than `std::map` in practice, driven by the O(n) insert/erase cost on level creation and deletion during sweeps.
+| Event type | Count | Share |
+| --- | ---: | ---: |
+| Add | 5,024,749 | 39.5% |
+| Update | 2,681,024 | 21.1% |
+| Delete | 5,024,349 | 39.5% |
+| **Total** | **12,730,122** | **100%** |
+
+Classification follows
+[Bybit's L2 price-level semantics](https://bybit-exchange.github.io/docs/v5/websocket/public/orderbook):
+a positive size at a new price is an add, a positive size at an active price
+is an update, and a zero size deletes the price level. The feed aggregates all
+orders at each price, so zero means all quantity at that level was filled or
+cancelled. A partial reduction is sent as a positive replacement size and
+remains an update.
+
+Adds and deletes account for 78.9% of events, meaning most events changed the
+set of active price levels.
+
+This high level churn favors `std::map`: a sorted `std::vector` must shift
+elements on level insertion and removal (O(n)), while `std::map` performs those
+operations in O(log n) without shifting the price ladder. Both ascending and
+descending vector configurations showed comparable or worse p50 latency in the
+benchmark.
 
 `std::map` was retained as the production implementation because it provides:
+
 - O(log n) insert/erase with no shifting cost
 - full price-range flexibility (any instrument, any tick size)
 - memory proportional to active price levels (sparse efficiency)
@@ -93,7 +123,7 @@ Both `std::map` and `std::vector`-based price ladders were benchmarked against t
 |------|-----------|
 | `GOOD_TILL_CANCEL` | Rests in book until explicitly cancelled or fully filled |
 | `FILL_AND_KILL` | Fills what it can immediately, remainder discarded |
-| `MARKET_ORDER` | No price specified — fills at best available price, remainder discarded |
+| `MARKET_ORDER` | No price specified; fills at best available price, remainder discarded |
 | `FILL_OR_KILL` | Must be filled entirely and immediately, otherwise the whole order is cancelled |
 | `POST_ONLY` | Only accepted if it adds liquidity; if it would cross the spread and fill, it is rejected |
 
@@ -111,8 +141,8 @@ Both `std::map` and `std::vector`-based price ladders were benchmarked against t
 
 ## Benchmarking
 
-- Custom `rdtsc`/`rdtscp` + `lfence` cycle-accurate harness — `lfence` before `rdtsc` serializes prior instructions, `rdtscp` + `lfence` after prevents the CPU reordering the timestamp read before the measured work completes
+- Custom `rdtsc`/`rdtscp` + `lfence` cycle-accurate harness: `lfence` before `rdtsc` serializes prior instructions, while `rdtscp` + `lfence` after prevents the CPU from reordering the timestamp read before the measured work completes
 - 100,000 iterations per measurement, 100ms calibration window for cycle → ns conversion
-- Pools and `orderMap_` pre-allocated to capacity before measurement — eliminates `new` and `unordered_map` rehash from the hot path
+- Pools and `orderMap_` pre-allocated to capacity before measurement, eliminating `new` and `unordered_map` rehash from the hot path
 - Steady-state depth: cancelOrder and addOrder (no match) cycle through a fixed price range so book depth stays constant across all samples
-- Sweep books pre-built outside the measurement loop — isolates matching cost from pool construction and order insertion
+- Sweep books pre-built outside the measurement loop to isolate matching cost from pool construction and order insertion

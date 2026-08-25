@@ -47,6 +47,9 @@ coverage/
 # Claude
 .claude/
 
+# Local Codex skills
+.agents/skills/
+
 # Other
 *.log
 .cache/
