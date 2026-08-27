@@ -5,18 +5,20 @@ High-performance C++20 limit order book designed for ultra-low latency trading s
 - Sub-100ns adds and cancels at steady state (40ns / 30ns p50)
 - O(1) order cancellation via direct pointer indexing
 - MBO (Market-by-Order) matching engine with FIFO execution
-- Custom rdtsc-based benchmarking harness replayed against 12M+ real BTCUSDT L2 events from the [Bybit public order book archive](https://public.bybit.com/orderbook/), dated April 22, 2026 (CSV replay)
+- Benchmarked on 12.7M [Bybit BTCUSDT depth-200 L2][bybit-orderbook]
+  events captured April 22, 2026
 
 ---
 
 ## Performance (Linux Native / Ubuntu, GCC Release)
 
-<!-- TODO: add hardware line when at machine, e.g.:
-Benchmarked on [CPU model] @ [X.X GHz], GCC [version], -O3 [-march=native], performance governor.
+<!-- TODO: add hardware details when available, e.g.:
+[CPU model] @ [X.X GHz], GCC [version], -O3 [-march=native],
+performance governor.
 -->
 
 | Operation | p50 | p99 | p99.9 |
-|----------|-----|-----|-------|
+| --- | ---: | ---: | ---: |
 | addOrder (no match, steady state) | 40.1 ns | 70.1 ns | 1.7 µs |
 | addOrder (no match, new level) | 110.2 ns | 1.6 µs | 3.1 µs |
 | addOrder (full match) | 40.1 ns | 170.3 ns | 310.6 ns |
@@ -28,7 +30,8 @@ Benchmarked on [CPU model] @ [X.X GHz], GCC [version], -O3 [-march=native], perf
 
 ![Latency Comparison](docs/latency_combined.png)
 
-KDE latency distribution across three implementations replayed against the same 12M+ BTC L2 event stream: `std::map`, `std::vector` (ascending price levels), and `std::vector` with bids/asks reversed (best price at back). All distributions clipped at p95.
+Latency distributions for `std::map` and two sorted `std::vector` layouts,
+replayed against the same 12.7M-event stream. Curves are clipped at p95.
 
 ---
 
@@ -70,62 +73,51 @@ KDE latency distribution across three implementations replayed against the same 
 
 ### Memory Management
 
-- Custom `OrderPool` and `PriceLevelPool` using free-list recycling
-- Recycled slots reused via in-place assignment, with no heap allocation on the hot path
-- Both pools expose a capacity constructor that pre-allocates all slots upfront, eliminating `new` entirely from the measured path
-- `OrderBook` accepts separate `order_capacity` and `level_capacity` parameters because orders and price levels are different scales (a book with 10k live orders may have only ~500 active levels), so over-allocating a single shared pool would waste memory
+- Custom `OrderPool` and `PriceLevelPool` with free-list recycling
+- In-place slot reuse avoids heap allocation on the hot path
+- Capacity constructors pre-allocate every measured slot
+- Separate order and level capacities avoid over-allocation at different scales
 - Designed for steady-state zero-allocation behavior
 
 ---
 
 ### Design Tradeoff: `std::map` vs `std::vector`
 
-Both `std::map` and `std::vector`-based price ladders were benchmarked against
-the same 12M+ real BTC L2 event stream. Reconstructing the observed depth-200
-book produced the following event distribution:
+`std::map` and two sorted `std::vector` price ladders were replayed against the
+same Bybit stream. Reconstructing the observed depth-200 book produced:
 
 | Event type | Count | Share |
 | --- | ---: | ---: |
 | Add | 5,024,749 | 39.5% |
-| Update | 2,681,024 | 21.1% |
+| Update | 2,680,624 | 21.1% |
 | Delete | 5,024,349 | 39.5% |
-| **Total** | **12,730,122** | **100%** |
+| **Total** | **12,729,722** | **100%** |
 
-Classification follows
-[Bybit's L2 price-level semantics](https://bybit-exchange.github.io/docs/v5/websocket/public/orderbook):
-a positive size at a new price is an add, a positive size at an active price
-is an update, and a zero size deletes the price level. The feed aggregates all
-orders at each price, so zero means all quantity at that level was filled or
-cancelled. A partial reduction is sent as a positive replacement size and
-remains an update.
+Counts follow [Bybit's delta rules][bybit-orderbook]:
+a positive size inserts or updates a price level, while zero deletes it. The
+initial snapshot levels count as adds; later snapshots reset the local book
+without being counted as updates.
 
-Adds and deletes account for 78.9% of events, meaning most events changed the
-set of active price levels.
-
-This high level churn favors `std::map`: a sorted `std::vector` must shift
-elements on level insertion and removal (O(n)), while `std::map` performs those
-operations in O(log n) without shifting the price ladder. Both ascending and
-descending vector configurations showed comparable or worse p50 latency in the
-benchmark.
+Adds and deletes make up 78.9% of the stream. That churn likely explains the
+measured `std::map` advantage: sorted vectors shift elements on O(n) level
+inserts and deletes, while maps perform them in O(log n). This conclusion is
+specific to the measured workload.
 
 `std::map` was retained as the production implementation because it provides:
 
 - O(log n) insert/erase with no shifting cost
-- full price-range flexibility (any instrument, any tick size)
-- memory proportional to active price levels (sparse efficiency)
-- consistent latency without pathological cases on sweep-heavy workloads
+- support for arbitrary price ranges and tick sizes
+- memory proportional to active price levels
 
 ---
 
 ## Order Types
 
-| Type | Behaviour |
-|------|-----------|
-| `GOOD_TILL_CANCEL` | Rests in book until explicitly cancelled or fully filled |
-| `FILL_AND_KILL` | Fills what it can immediately, remainder discarded |
-| `MARKET_ORDER` | No price specified; fills at best available price, remainder discarded |
-| `FILL_OR_KILL` | Must be filled entirely and immediately, otherwise the whole order is cancelled |
-| `POST_ONLY` | Only accepted if it adds liquidity; if it would cross the spread and fill, it is rejected |
+- **`GOOD_TILL_CANCEL`:** Rests until cancelled or fully filled
+- **`FILL_AND_KILL`:** Fills immediately and discards the remainder
+- **`MARKET_ORDER`:** Fills at the best available prices
+- **`FILL_OR_KILL`:** Fills completely and immediately or is cancelled
+- **`POST_ONLY`:** Rests as liquidity or is rejected if it would cross
 
 ---
 
@@ -135,14 +127,17 @@ benchmark.
 - Sell orders walk bids downward
 - Fully consumed levels are erased from active book
 - Self-trade prevention cancels internal matches at source
-- `bestBid_` / `bestAsk_` maintained as O(1) cached pointers to top-of-book price levels
+- `bestBid_` and `bestAsk_` cache the top of book for O(1) access
 
 ---
 
 ## Benchmarking
 
-- Custom `rdtsc`/`rdtscp` + `lfence` cycle-accurate harness: `lfence` before `rdtsc` serializes prior instructions, while `rdtscp` + `lfence` after prevents the CPU from reordering the timestamp read before the measured work completes
-- 100,000 iterations per measurement, 100ms calibration window for cycle → ns conversion
-- Pools and `orderMap_` pre-allocated to capacity before measurement, eliminating `new` and `unordered_map` rehash from the hot path
-- Steady-state depth: cancelOrder and addOrder (no match) cycle through a fixed price range so book depth stays constant across all samples
-- Sweep books pre-built outside the measurement loop to isolate matching cost from pool construction and order insertion
+- Cycle-accurate `rdtsc`/`rdtscp` harness fenced with `lfence`
+- 100,000 iterations per measurement
+- 100ms calibration window for cycle-to-nanosecond conversion
+- Pools and `orderMap_` pre-allocated before measurement
+- Fixed price range maintains steady depth for add and cancel samples
+- Sweep books built before timing to isolate matching cost
+
+[bybit-orderbook]: https://bybit-exchange.github.io/docs/v5/websocket/public/orderbook

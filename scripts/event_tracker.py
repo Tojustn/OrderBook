@@ -42,8 +42,8 @@ output_file = sys.argv[2] if len(sys.argv) > 2 else "data/event_stats.csv"
 
 with open(input_file, "r") as f:
     total_adds = 0
-    total_updates = 0 
-    total_deletes = 0 
+    total_updates = 0
+    total_deletes = 0
 
     bid_adds = 0
     bid_updates = 0
@@ -55,6 +55,8 @@ with open(input_file, "r") as f:
 
     seen_bids = set()
     seen_asks = set()
+    book_initialized = False
+
     for line in f:
         line = line.strip()
         if not line:
@@ -65,11 +67,30 @@ with open(input_file, "r") as f:
         msg = json.loads(line)
         msg_type = msg.get("type")  # snapshot or delta
         data = msg.get("data", {})
-        # Timestamp
-        ts = msg.get("ts")
-
         bids = data.get("b", [])
         asks = data.get("a", [])
+
+        is_snapshot = msg_type == "snapshot" or data.get("u") == 1
+        if is_snapshot:
+            snapshot_bids = {
+                price for price, size in bids if float(size) > 0.0
+            }
+            snapshot_asks = {
+                price for price, size in asks if float(size) > 0.0
+            }
+
+            if not book_initialized:
+                bid_adds += len(snapshot_bids)
+                ask_adds += len(snapshot_asks)
+                total_adds += len(snapshot_bids) + len(snapshot_asks)
+
+            seen_bids = snapshot_bids
+            seen_asks = snapshot_asks
+            book_initialized = True
+            continue
+
+        if not book_initialized:
+            raise ValueError("Received a delta before the initial snapshot")
 
         for bid in bids:
             price, size = bid[0], bid[1]
