@@ -4,7 +4,8 @@
 #include "types.hpp"
 // Not a pointer as a param since caller doesnt manage memory
 OrderBook::OrderBook(size_t order_capacity, size_t level_capacity)
-    : order_pool_(order_capacity), price_level_pool_(level_capacity) {}
+    : order_pool_(order_capacity), price_level_pool_(level_capacity) {
+}
 
 void OrderBook::fillOrder(PriceLevel& level) {
   Order* filled = level.popFront();
@@ -26,10 +27,7 @@ OrderBook::~OrderBook() {
 
 OrderBook::OrderBook(OrderBook&& other) noexcept
     : bids_(std::move(other.bids_)), asks_(std::move(other.asks_)), orderMap_(std::move(other.orderMap_)),
-      bestBid_(other.bestBid_), bestAsk_(other.bestAsk_), order_pool_(std::move(other.order_pool_)),
-      price_level_pool_(std::move(other.price_level_pool_)) {
-  other.bestBid_ = nullptr;
-  other.bestAsk_ = nullptr;
+      order_pool_(std::move(other.order_pool_)), price_level_pool_(std::move(other.price_level_pool_)) {
 }
 
 OrderBook& OrderBook::operator=(OrderBook&& other) noexcept {
@@ -47,12 +45,8 @@ OrderBook& OrderBook::operator=(OrderBook&& other) noexcept {
   bids_ = std::move(other.bids_);
   asks_ = std::move(other.asks_);
   orderMap_ = std::move(other.orderMap_);
-  bestBid_ = other.bestBid_;
-  bestAsk_ = other.bestAsk_;
   order_pool_ = std::move(other.order_pool_);
   price_level_pool_ = std::move(other.price_level_pool_);
-  other.bestBid_ = nullptr;
-  other.bestAsk_ = nullptr;
   return *this;
 }
 
@@ -61,6 +55,13 @@ AddResult OrderBook::addOrder(OrderType orderType, const Order& order) {
   const Side order_side = order.getSide();
   const OrderId order_id = order.getId();
 
+  if (orderMap_.find(order_id) != orderMap_.end()) {
+    return AddResult::IDENTICAL_ORDER_EXIST;
+  }
+
+  if (order.quantity_ <= 0) {
+    return AddResult::INVALID_QUANTITY;
+  }
   switch (orderType) {
     case (OrderType::GOOD_TILL_CANCEL): {
       const MatchResult result = matchOrder(order);
@@ -112,8 +113,6 @@ AddResult OrderBook::addOrder(OrderType orderType, const Order& order) {
       return AddResult::FILLED;
   }
 
-  bestBid_ = bids_.empty() ? nullptr : bids_.rbegin()->second;
-  bestAsk_ = asks_.empty() ? nullptr : asks_.begin()->second;
   return AddResult::ADDED;
 }
 // For Market Order Type
@@ -136,11 +135,9 @@ CancelResult OrderBook::cancelOrder(const OrderId orderId) {
   if (level->getTotalQuantity() == 0) {
     if (order->getSide() == Side::BUY) {
       bids_.erase(order->getPrice());
-      bestBid_ = (bids_.empty() ? nullptr : bids_.rbegin()->second);
     }
     else {
       asks_.erase(order->getPrice());
-      bestAsk_ = (asks_.empty() ? nullptr : asks_.begin()->second);
     }
     price_level_pool_.deallocate(level);
   }
@@ -182,8 +179,6 @@ MatchResult OrderBook::matchOrder(const Order& order) {
       else
         ++it;
     }
-
-    bestAsk_ = (asks_.empty() ? nullptr : asks_.begin()->second);
   }
   else {
     auto it = bids_.rbegin();
@@ -212,7 +207,6 @@ MatchResult OrderBook::matchOrder(const Order& order) {
       else
         ++it;
     }
-    bestBid_ = (bids_.empty() ? nullptr : bids_.rbegin()->second);
   }
 
   return MatchResult{remainingQuantity, false};

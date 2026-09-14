@@ -21,6 +21,8 @@ struct MatchResult {
 
 enum class AddResult : uint8_t {
   STP_CANCELLED, // Self Trade Prevention
+  IDENTICAL_ORDER_EXIST,
+  INVALID_QUANTITY,
   ADDED,
   FILLED,
   KILLED // FAK: partial fill, remainder discarded

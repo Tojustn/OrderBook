@@ -10,6 +10,36 @@ High-performance C++20 limit order book designed for ultra-low latency trading s
 
 ---
 
+## Build, Test, and Benchmark
+
+Requirements: CMake 3.15 or newer, Git, and a C++20 compiler.
+
+Configure and build the project in Release mode:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_TESTS=ON -DBUILD_BENCHMARKS=ON
+cmake --build build --parallel
+```
+
+Run the complete test suite:
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+Run the order-book microbenchmarks:
+
+```bash
+./build/benchmarks/benchmarks
+```
+
+Benchmark results depend on the CPU, compiler, build flags, system load, and
+power-management settings. Use a Release build and record the environment when
+comparing results.
+
+---
+
 ## Performance (Linux Native / Ubuntu, GCC Release)
 
 <!-- TODO: add hardware details when available, e.g.:
@@ -127,7 +157,6 @@ specific to the measured workload.
 - Sell orders walk bids downward
 - Fully consumed levels are erased from active book
 - Self-trade prevention cancels internal matches at source
-- `bestBid_` and `bestAsk_` cache the top of book for O(1) access
 
 ---
 

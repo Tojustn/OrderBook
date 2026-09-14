@@ -72,6 +72,48 @@ TEST_CASE("addOrder - buy and sell go to separate sides", "[orderbook][add]") {
   REQUIRE(book.getAsks().size() == 1);
 }
 
+TEST_CASE("addOrder - Cannot add duplicate order id", "[orderbook][add]") {
+  OrderBook book;
+  Order order1(1, Side::BUY, 100, 50, 1);
+  Order order2(1, Side::BUY, 200, 30, 2);
+
+  book.addOrder(OrderType::GOOD_TILL_CANCEL, order1);
+  AddResult order_exist_result = book.addOrder(OrderType::GOOD_TILL_CANCEL, order2);
+  CHECK(order_exist_result == AddResult::IDENTICAL_ORDER_EXIST);
+}
+
+TEST_CASE("addOrder - rejects non-positive quantities without changing the book", "[orderbook][add]") {
+  SECTION("negative quantity") {
+    OrderBook book;
+    const Order invalid(1, Side::BUY, 100, -5, 1);
+
+    CHECK(book.addOrder(OrderType::GOOD_TILL_CANCEL, invalid) == AddResult::INVALID_QUANTITY);
+    CHECK(book.getBids().empty());
+    CHECK(book.getAsks().empty());
+    CHECK(book.cancelOrder(1) == CancelResult::NOT_FOUND);
+  }
+
+  SECTION("zero quantity does not reserve the order ID") {
+    OrderBook book;
+    const Order invalid(1, Side::SELL, 100, 0, 1);
+    const Order valid(1, Side::SELL, 100, 10, 1);
+
+    CHECK(book.addOrder(OrderType::GOOD_TILL_CANCEL, invalid) == AddResult::INVALID_QUANTITY);
+    REQUIRE(book.addOrder(OrderType::GOOD_TILL_CANCEL, valid) == AddResult::ADDED);
+    REQUIRE(hasLevel(book.getAsks(), 100));
+    CHECK(atLevel(book.getAsks(), 100).getTotalQuantity() == 10);
+  }
+
+  SECTION("market order overload") {
+    OrderBook book;
+
+    CHECK(book.addOrder(1, Side::BUY, -5, 1) == AddResult::INVALID_QUANTITY);
+    CHECK(book.addOrder(2, Side::SELL, 0, 2) == AddResult::INVALID_QUANTITY);
+    CHECK(book.getBids().empty());
+    CHECK(book.getAsks().empty());
+  }
+}
+
 // ── cancelOrder ───────────────────────────────────────────────────────────────
 
 TEST_CASE("cancelOrder - cancels a buy order", "[orderbook][cancel]") {

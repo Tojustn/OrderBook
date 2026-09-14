@@ -16,8 +16,6 @@ public:
   AddResult addOrder(const OrderId, const Side, const Quantity, const UserId);
   CancelResult cancelOrder(const OrderId orderId);
   ModifyResult modifyOrder(const OrderId orderId, const Quantity newQuantity);
-  PriceLevel* getBestBid() const noexcept { return bestBid_; }
-  PriceLevel* getBestAsk() const noexcept { return bestAsk_; }
   const std::map<Price, PriceLevel*>& getBids() const noexcept { return bids_; }
   const std::map<Price, PriceLevel*>& getAsks() const noexcept { return asks_; }
 
@@ -36,10 +34,6 @@ private:
   std::map<Price, PriceLevel*> bids_;
   std::map<Price, PriceLevel*> asks_;
   std::unordered_map<OrderId, Order*> orderMap_;
-
-  // Points to a pricelevel, O(1) still don't have to adjust on every addOrder
-  PriceLevel* bestBid_ = nullptr;
-  PriceLevel* bestAsk_ = nullptr;
 
   OrderPool order_pool_;
   PriceLevelPool price_level_pool_;
