@@ -31,7 +31,7 @@ ctest --test-dir build --output-on-failure
 Run the order-book microbenchmarks:
 
 ```bash
-./build/benchmarks/benchmarks
+taskset -c 0 ./build/benchmarks/benchmarks
 ```
 
 Benchmark results depend on the CPU, compiler, build flags, system load, and
@@ -49,14 +49,14 @@ performance governor.
 
 | Operation | p50 | p99 | p99.9 |
 | --- | ---: | ---: | ---: |
-| addOrder (no match, steady state) | 40.1 ns | 70.1 ns | 1.7 µs |
-| addOrder (no match, new level) | 110.2 ns | 1.6 µs | 3.1 µs |
-| addOrder (full match) | 40.1 ns | 170.3 ns | 310.6 ns |
-| cancelOrder | 30.1 ns | 270.5 ns | 350.7 ns |
-| sweep (8 levels) | 380.7 ns | 1.1 µs | 1.7 µs |
-| sweep (64 levels) | 3.8 µs | 6.1 µs | 10.4 µs |
-| sweep (256 levels) | 12.8 µs | 20.3 µs | 25.5 µs |
-| sweep (1024 levels) | 46.3 µs | 59.8 µs | 68.5 µs |
+| addOrder (no match, existing level) | 30.1 ns | 50.1 ns | 80.2 ns |
+| addOrder (no match, new level) | 40.1 ns | 70.1 ns | 80.2 ns |
+| addOrder (full match, one order) | 40.1 ns | 60.1 ns | 80.2 ns |
+| cancelOrder (existing level) | 30.1 ns | 40.1 ns | 50.1 ns |
+| sweep (8 levels) | 240.5 ns | 290.6 ns | 490.9 ns |
+| sweep (64 levels) | 2.0 µs | 3.2 µs | 6.9 µs |
+| sweep (256 levels) | 8.3 µs | 13.3 µs | 18.0 µs |
+| sweep (1024 levels) | 32.9 µs | 45.9 µs | 50.2 µs |
 
 ![Latency Comparison](docs/latency_combined.png)
 
@@ -163,10 +163,12 @@ specific to the measured workload.
 ## Benchmarking
 
 - Cycle-accurate `rdtsc`/`rdtscp` harness fenced with `lfence`
+- Benchmark process pinned to CPU 0 with `taskset -c 0`
 - 100,000 iterations per measurement
+- 5,000 untimed warm-up iterations before each measurement loop
 - 100ms calibration window for cycle-to-nanosecond conversion
-- Pools and `orderMap_` pre-allocated before measurement
-- Fixed price range maintains steady depth for add and cancel samples
-- Sweep books built before timing to isolate matching cost
+- One long-lived `OrderBook` reused for every sample in a scenario
+- Per-sample setup and state restoration happen outside the timed region
+- Book depth and pool occupancy remain steady throughout each scenario
 
 [bybit-orderbook]: https://bybit-exchange.github.io/docs/v5/websocket/public/orderbook

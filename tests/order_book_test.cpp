@@ -114,7 +114,72 @@ TEST_CASE("addOrder - rejects non-positive quantities without changing the book"
   }
 }
 
-// ── cancelOrder ───────────────────────────────────────────────────────────────
+// ── immediate order types ─────────────────────────────────────────────────────
+
+TEST_CASE("fill-and-kill reports the amount filled and never rests a remainder", "[orderbook][ordertypes][fak]") {
+  SECTION("fully filled") {
+    OrderBook book;
+    REQUIRE(book.addOrder(OrderType::GOOD_TILL_CANCEL, Order(1, Side::SELL, 100, 50, 1)) == AddResult::ADDED);
+
+    CHECK(book.addOrder(OrderType::FILL_AND_KILL, Order(2, Side::BUY, 100, 50, 2)) == AddResult::FILLED);
+    CHECK(book.getAsks().empty());
+    CHECK(book.getBids().empty());
+  }
+
+  SECTION("partially filled") {
+    OrderBook book;
+    REQUIRE(book.addOrder(OrderType::GOOD_TILL_CANCEL, Order(1, Side::SELL, 100, 20, 1)) == AddResult::ADDED);
+
+    CHECK(book.addOrder(OrderType::FILL_AND_KILL, Order(2, Side::BUY, 100, 50, 2)) ==
+          AddResult::PARTIALLY_FILLED);
+    CHECK(book.getAsks().empty());
+    CHECK(book.getBids().empty());
+    CHECK(book.cancelOrder(2) == CancelResult::NOT_FOUND);
+  }
+
+  SECTION("not filled") {
+    OrderBook book;
+    REQUIRE(book.addOrder(OrderType::GOOD_TILL_CANCEL, Order(1, Side::SELL, 101, 50, 1)) == AddResult::ADDED);
+
+    CHECK(book.addOrder(OrderType::FILL_AND_KILL, Order(2, Side::BUY, 100, 50, 2)) == AddResult::KILLED);
+    REQUIRE(hasLevel(book.getAsks(), 101));
+    CHECK(atLevel(book.getAsks(), 101).getTotalQuantity() == 50);
+    CHECK(book.getBids().empty());
+    CHECK(book.cancelOrder(2) == CancelResult::NOT_FOUND);
+  }
+}
+
+TEST_CASE("market order reports the amount filled and never rests a remainder", "[orderbook][ordertypes][market]") {
+  SECTION("fully filled") {
+    OrderBook book;
+    REQUIRE(book.addOrder(OrderType::GOOD_TILL_CANCEL, Order(1, Side::BUY, 100, 50, 1)) == AddResult::ADDED);
+
+    CHECK(book.addOrder(2, Side::SELL, 50, 2) == AddResult::FILLED);
+    CHECK(book.getBids().empty());
+    CHECK(book.getAsks().empty());
+  }
+
+  SECTION("partially filled") {
+    OrderBook book;
+    REQUIRE(book.addOrder(OrderType::GOOD_TILL_CANCEL, Order(1, Side::SELL, 100, 20, 1)) == AddResult::ADDED);
+
+    CHECK(book.addOrder(2, Side::BUY, 50, 2) == AddResult::PARTIALLY_FILLED);
+    CHECK(book.getAsks().empty());
+    CHECK(book.getBids().empty());
+    CHECK(book.cancelOrder(2) == CancelResult::NOT_FOUND);
+  }
+
+  SECTION("not filled") {
+    OrderBook book;
+
+    CHECK(book.addOrder(1, Side::BUY, 50, 1) == AddResult::KILLED);
+    CHECK(book.getAsks().empty());
+    CHECK(book.getBids().empty());
+    CHECK(book.cancelOrder(1) == CancelResult::NOT_FOUND);
+  }
+}
+
+// ── cancelOrder ──
 
 TEST_CASE("cancelOrder - cancels a buy order", "[orderbook][cancel]") {
   OrderBook book;

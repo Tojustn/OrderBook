@@ -25,7 +25,8 @@ enum class AddResult : uint8_t {
   INVALID_QUANTITY,
   ADDED,
   FILLED,
-  KILLED // FAK: partial fill, remainder discarded
+  KILLED, // FAK: partial fill, remainder discarded
+  PARTIALLY_FILLED
 };
 
 enum class CancelResult : uint8_t {

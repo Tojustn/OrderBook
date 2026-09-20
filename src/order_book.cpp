@@ -63,6 +63,7 @@ AddResult OrderBook::addOrder(OrderType orderType, const Order& order) {
     return AddResult::INVALID_QUANTITY;
   }
   switch (orderType) {
+    // Rests in the OrderBook until filled or cancelled
     case (OrderType::GOOD_TILL_CANCEL): {
       const MatchResult result = matchOrder(order);
       if (result.stpTriggered)
@@ -80,22 +81,39 @@ AddResult OrderBook::addOrder(OrderType orderType, const Order& order) {
       slot->level_ = it->second;
       break;
     }
+    // Fills the order as much as possible and then kills order
     case (OrderType::FILL_AND_KILL): {
       const MatchResult result = matchOrder(order);
       if (result.stpTriggered)
         return AddResult::STP_CANCELLED;
-      return result.remaining == 0 ? AddResult::FILLED : AddResult::KILLED;
+      if (result.remaining == 0)
+        return AddResult::FILLED;
+      if (result.remaining < order.getQuantity())
+        return AddResult::PARTIALLY_FILLED;
+      return AddResult::KILLED;
     }
+    // Buys quantity at best price
     case (OrderType::MARKET_ORDER): {
-      matchOrder(order);
-      return AddResult::FILLED;
+      const MatchResult matchResult = matchOrder(order);
+      if (matchResult.stpTriggered) {
+        return AddResult::STP_CANCELLED;
+      }
+      if (matchResult.remaining == 0) {
+        return AddResult::FILLED;
+      }
+      if (matchResult.remaining < order.getQuantity()) {
+        return AddResult::PARTIALLY_FILLED;
+      }
+      return AddResult::KILLED;
     }
+    // Checks if can fill entire order if not then it's killed
     case (OrderType::FILL_OR_KILL): {
       if (!canFill(order))
         return AddResult::KILLED;
       matchOrder(order);
       return AddResult::FILLED;
     }
+    // Only makes an order
     case (OrderType::POST_ONLY): {
       if (couldMatch(order))
         return AddResult::KILLED;
