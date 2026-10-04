@@ -62,7 +62,9 @@ bool SPSC_QUEUE<T>::pop(T& val) {
   if (pop_cursor_index == push_cursor_index)
     return false;
 
-  val = ring_[pop_cursor_index % capacity_];
+  T& slot = ring_[pop_cursor_index % capacity_];
+  val = slot;
+  slot.~T();
 
   pop_cursor_.store(pop_cursor_index + 1);
   return true;
@@ -80,3 +82,8 @@ SPSC_QUEUE<T>::~SPSC_QUEUE() {
 
   free(ring_);
 }
+
+// Every element is constructed exactly once by push() and destroyed exactly
+// once: either by pop() after the value is copied out, or by the destructor
+// for elements still in the ring. push() therefore always overwrites a slot
+// that is either raw malloc memory (first pass) or already destroyed.
