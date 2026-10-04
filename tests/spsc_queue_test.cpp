@@ -2,6 +2,25 @@
 #include <cstdint>
 #include <spsc_queue.hpp>
 
+namespace {
+// Counts constructions and destructions so lifetime bugs in the ring are
+// observable. The ring placement-news into raw malloc memory, so every
+// constructed element must also be destroyed exactly once.
+struct LifeCounter {
+  static inline int constructed = 0;
+  static inline int destroyed = 0;
+  int value;
+
+  explicit LifeCounter(int v) : value(v) { ++constructed; }
+  LifeCounter(const LifeCounter& o) : value(o.value) { ++constructed; }
+  LifeCounter& operator=(const LifeCounter& o) {
+    value = o.value;
+    return *this;
+  }
+  ~LifeCounter() { ++destroyed; }
+};
+} // namespace
+
 TEST_CASE("SPSC_QUEUE.push -- Pushing is allowed on a non full queue") {
   SPSC_QUEUE<int64_t> queue{5};
   int64_t num{9};
@@ -56,4 +75,32 @@ TEST_CASE("SPSC_QUEUE -- survives wrapping around the ring") {
     REQUIRE(queue.pop(out));
     CHECK(out == expected);
   }
+}
+
+TEST_CASE("SPSC_QUEUE -- destroys every constructed element exactly once") {
+  LifeCounter::constructed = 0;
+  LifeCounter::destroyed = 0;
+
+  {
+    SPSC_QUEUE<LifeCounter> queue{5};
+    LifeCounter out{0};
+
+    // Wrap the ring several times: pushes overwrite slots whose previous
+    // element must already have been destroyed by pop().
+    for (int round = 0; round < 10; ++round) {
+      for (int i = 0; i < 5; ++i) {
+        REQUIRE(queue.push(LifeCounter{round * 5 + i}));
+      }
+      for (int i = 0; i < 5; ++i) {
+        REQUIRE(queue.pop(out));
+        CHECK(out.value == round * 5 + i);
+      }
+    }
+
+    // Elements still in the ring when it is destroyed must also be released.
+    for (int i = 0; i < 3; ++i)
+      REQUIRE(queue.push(LifeCounter{100 + i}));
+  }
+
+  CHECK(LifeCounter::destroyed == LifeCounter::constructed);
 }
